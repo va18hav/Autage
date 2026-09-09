@@ -1,4 +1,5 @@
 import uuid
+from typing import Any
 from sqlalchemy import ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -88,3 +89,4 @@ class RunbookSection(Base, TimestampMixin):
 
 # Aliases so both singular and plural forms work seamlessly
 Runbooks = Runbook
+RunbookSections = RunbookSection
