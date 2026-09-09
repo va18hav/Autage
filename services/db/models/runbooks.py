@@ -84,3 +84,7 @@ class RunbookSection(Base, TimestampMixin):
     runbook: Mapped["Runbook"] = relationship(
         back_populates="sections",
     )
+
+
+# Aliases so both singular and plural forms work seamlessly
+Runbooks = Runbook
