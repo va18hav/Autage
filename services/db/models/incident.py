@@ -54,3 +54,9 @@ class Incident(Base, TimestampMixin):
         order_by="IncidentStep.created_at.asc()",
         lazy="selectin"
     )
+
+
+class StepStatus(str, enum.Enum):
+    RUNNING = "RUNNING"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
