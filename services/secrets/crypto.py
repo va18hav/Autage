@@ -1,3 +1,4 @@
+import json
 from warnings import warn
 
 from cryptography.fernet import Fernet
@@ -29,3 +30,8 @@ def _get_fernet() -> Fernet:
             master_key = Fernet.generate_key().decode()
         _fernet = Fernet(master_key.encode())
     return _fernet
+
+
+def encrypt_payload(payload: dict) -> str:
+    """Serialize and Fernet-encrypt a credential payload. Returns ciphertext text."""
+    return _get_fernet().encrypt(json.dumps(payload).encode()).decode()
