@@ -3,6 +3,7 @@ from logging.config import fileConfig
 
 from alembic import context
 
+from services.db.models.base import Base
 from services.config import settings
 
 # this is the Alembic Config object, which provides
@@ -19,3 +20,4 @@ if config.config_file_name is not None:
 # from myapp import mymodel
 # target_metadata = mymodel.Base.metadata
 config.set_main_option("sqlalchemy.url", settings.database_url)
+target_metadata = Base.metadata
