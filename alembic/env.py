@@ -1,9 +1,15 @@
 from logging.config import fileConfig
 
+from sqlalchemy import engine_from_config
+from sqlalchemy import pool
 
 from alembic import context
 
 from services.db.models.base import Base
+from services.db.models.incident import Incident, IncidentStep
+from services.db.models.runbooks import Runbook, RunbookSection
+from services.db.models.credentials import Credential, LlmStepConfig
+from services.db.models.user import User
 from services.config import settings
 
 # this is the Alembic Config object, which provides
@@ -68,3 +74,9 @@ def run_migrations_online() -> None:
 
     import asyncio
     asyncio.run(run_async_migrations())
+
+
+if context.is_offline_mode():
+    run_migrations_offline()
+else:
+    run_migrations_online()
