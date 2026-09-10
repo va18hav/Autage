@@ -1,7 +1,7 @@
 import json
 from warnings import warn
 
-from cryptography.fernet import Fernet
+from cryptography.fernet import Fernet, InvalidToken
 
 from services.config import settings
 
@@ -35,3 +35,23 @@ def _get_fernet() -> Fernet:
 def encrypt_payload(payload: dict) -> str:
     """Serialize and Fernet-encrypt a credential payload. Returns ciphertext text."""
     return _get_fernet().encrypt(json.dumps(payload).encode()).decode()
+
+
+def _decrypt_payload(ciphertext: str | None) -> dict | None:
+    """Turn stored ciphertext into its plaintext payload dict."""
+    if not ciphertext:
+        return None
+
+    try:
+        plaintext = _get_fernet().decrypt(ciphertext.encode())
+        return json.loads(plaintext)
+    except InvalidToken as exc:
+        raise SecretDecryptionError(
+            "Failed to decrypt a stored credential — the encryption key "
+            "(AUTAGE_SECRET_KEY) differs from the one used to save it. "
+            "Re-enter the affected API keys in Settings."
+        ) from exc
+    except json.JSONDecodeError as exc:
+        raise SecretDecryptionError(
+            "Stored credential payload is not a valid JSON document."
+        ) from exc
