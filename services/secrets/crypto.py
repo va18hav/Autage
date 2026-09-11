@@ -1,4 +1,6 @@
 import json
+from functools import wraps
+from inspect import iscoroutinefunction
 from warnings import warn
 
 from cryptography.fernet import Fernet, InvalidToken
@@ -55,3 +57,24 @@ def _decrypt_payload(ciphertext: str | None) -> dict | None:
         raise SecretDecryptionError(
             "Stored credential payload is not a valid JSON document."
         ) from exc
+
+
+def decrypt_payload(func):
+    """Decorator: decrypts the payload returned by the wrapped callable.
+
+    Apply this to any function whose return value is a Fernet ciphertext
+    (e.g. a DAO method that fetches an encrypted credential). Callers receive
+    the decrypted dict (or None) and never touch decryption logic themselves.
+
+    Works on both sync and async callables.
+    """
+
+    @wraps(func)
+    async def async_wrapper(*args, **kwargs):
+        return _decrypt_payload(await func(*args, **kwargs))
+
+    @wraps(func)
+    def sync_wrapper(*args, **kwargs):
+        return _decrypt_payload(func(*args, **kwargs))
+
+    return async_wrapper if iscoroutinefunction(func) else sync_wrapper
