@@ -1,4 +1,5 @@
 import pytest
+import services.secrets.crypto as crypto_mod
 from services.secrets.crypto import SecretDecryptionError, _decrypt_payload, encrypt_payload
 
 def test_encrypt_and_decrypt_payload_roundtrip():
@@ -18,3 +19,11 @@ def test_decrypt_payload_handles_none_and_empty():
 def test_decrypt_payload_raises_on_invalid_token():
     with pytest.raises(SecretDecryptionError, match="Failed to decrypt"):
         _decrypt_payload("not-a-valid-fernet-token")
+
+
+def test_decrypt_payload_raises_on_non_json_plaintext():
+    cipher = crypto_mod._get_fernet()
+    bad_ciphertext = cipher.encrypt(b"not-valid-json-{").decode()
+
+    with pytest.raises(SecretDecryptionError, match="not a valid JSON document"):
+        _decrypt_payload(bad_ciphertext)
