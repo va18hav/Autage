@@ -1,6 +1,15 @@
+import warnings
 import pytest
+from cryptography.fernet import Fernet
+
 import services.secrets.crypto as crypto_mod
-from services.secrets.crypto import SecretDecryptionError, _decrypt_payload, decrypt_payload, encrypt_payload
+from services.secrets.crypto import (
+    SecretDecryptionError,
+    _decrypt_payload,
+    decrypt_payload,
+    encrypt_payload,
+)
+
 
 def test_encrypt_and_decrypt_payload_roundtrip():
     payload = {"api_key": "sk-live-987654", "base_url": "https://api.openai.com/v1"}
@@ -44,3 +53,16 @@ async def test_decrypt_payload_decorator_sync_and_async():
 
     assert fetch_sync() == expected
     assert await fetch_async() == expected
+
+
+def test_ephemeral_fernet_key_warns_when_master_key_unset(monkeypatch):
+    monkeypatch.setattr(crypto_mod, "_fernet", None)
+    monkeypatch.setattr(crypto_mod.settings, "AUTAGE_SECRET_KEY", "")
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        f = crypto_mod._get_fernet()
+        assert isinstance(f, Fernet)
+        assert any("AUTAGE_SECRET_KEY is not set" in str(w.message) for w in caught)
+
+    monkeypatch.setattr(crypto_mod, "_fernet", None)
