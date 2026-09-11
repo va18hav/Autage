@@ -1,6 +1,6 @@
 import pytest
 import services.secrets.crypto as crypto_mod
-from services.secrets.crypto import SecretDecryptionError, _decrypt_payload, encrypt_payload
+from services.secrets.crypto import SecretDecryptionError, _decrypt_payload, decrypt_payload, encrypt_payload
 
 def test_encrypt_and_decrypt_payload_roundtrip():
     payload = {"api_key": "sk-live-987654", "base_url": "https://api.openai.com/v1"}
@@ -27,3 +27,20 @@ def test_decrypt_payload_raises_on_non_json_plaintext():
 
     with pytest.raises(SecretDecryptionError, match="not a valid JSON document"):
         _decrypt_payload(bad_ciphertext)
+
+
+@pytest.mark.anyio
+async def test_decrypt_payload_decorator_sync_and_async():
+    expected = {"secret": "whsec_abc123"}
+    ciphertext = encrypt_payload(expected)
+
+    @decrypt_payload
+    def fetch_sync():
+        return ciphertext
+
+    @decrypt_payload
+    async def fetch_async():
+        return ciphertext
+
+    assert fetch_sync() == expected
+    assert await fetch_async() == expected
