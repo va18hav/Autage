@@ -35,3 +35,13 @@ class SecretStore:
             await db.commit()
             await db.refresh(credential)
             return credential
+
+    @staticmethod
+    async def delete(purpose: str) -> bool:
+        async with async_session_factory() as db:
+            credential = await db.get(Credential, purpose)
+            if credential is None:
+                return False
+            await db.delete(credential)
+            await db.commit()
+            return True
