@@ -7,3 +7,8 @@ def test_encrypt_and_decrypt_payload_roundtrip():
     assert isinstance(ciphertext, str)
     assert "sk-live-987654" not in ciphertext
     assert _decrypt_payload(ciphertext) == payload
+
+
+def test_decrypt_payload_handles_none_and_empty():
+    assert _decrypt_payload(None) is None
+    assert _decrypt_payload("") is None
