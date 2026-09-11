@@ -1,7 +1,7 @@
 
 from services.db.database import async_session_factory
 from services.db.models.credentials import Credential
-from services.secrets.crypto import decrypt_payload
+from services.secrets.crypto import encrypt_payload, decrypt_payload
 
 
 class SecretStore:
@@ -20,3 +20,18 @@ class SecretStore:
         async with async_session_factory() as db:
             credential = await db.get(Credential, purpose)
             return credential.encrypted_payload if credential else None
+
+    @staticmethod
+    async def save(purpose: str, payload: dict, preview: str | None) -> Credential:
+        """Upsert a credential: encrypt the payload, keep a masked preview."""
+        ciphertext = encrypt_payload(payload)
+        async with async_session_factory() as db:
+            credential = await db.get(Credential, purpose)
+            if credential is None:
+                credential = Credential(purpose=purpose)
+                db.add(credential)
+            credential.encrypted_payload = ciphertext
+            credential.preview = preview
+            await db.commit()
+            await db.refresh(credential)
+            return credential
