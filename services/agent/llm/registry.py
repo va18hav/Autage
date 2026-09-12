@@ -4,3 +4,8 @@ This is the ONLY place that knows about concrete chat-model SDKs. Nodes
 resolve models through services.agent.llm.resolver instead of importing
 provider classes, so adding a provider is a change to this file alone.
 """
+
+from typing import Literal
+
+
+ModelTier = Literal["fast", "balanced", "frontier"]
