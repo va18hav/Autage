@@ -6,8 +6,9 @@ provider classes, so adding a provider is a change to this file alone.
 """
 
 from dataclasses import dataclass
-from typing import Literal
+from typing import Callable, Literal
 
+from langchain_core.language_models.chat_models import BaseChatModel
 
 ModelTier = Literal["fast", "balanced", "frontier"]
 
@@ -29,3 +30,18 @@ class CredentialField:
     required: bool = True
     # Used to prefill / document optional fields (e.g. Ollama's local port)
     default: str | None = None
+
+
+@dataclass(frozen=True)
+class ProviderSpec:
+    id: str
+    display_name: str
+    credential_fields: tuple[CredentialField, ...]
+    models: tuple[ModelSpec, ...]
+    # Builds the chat model. `credential` is the decrypted payload dict
+    # (None for providers that need no credential, e.g. local Ollama).
+    create: Callable[[dict | None, str, float | None, int | None], BaseChatModel]
+
+    @property
+    def needs_credential(self) -> bool:
+        return any(f.required for f in self.credential_fields)
