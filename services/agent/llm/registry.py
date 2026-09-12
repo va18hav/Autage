@@ -17,3 +17,15 @@ class ModelSpec:
     id: str
     label: str
     tier: ModelTier
+
+
+@dataclass(frozen=True)
+class CredentialField:
+    """One entry a user supplies for this provider (e.g. api_key, base_url)."""
+
+    name: str
+    label: str
+    is_secret: bool = True
+    required: bool = True
+    # Used to prefill / document optional fields (e.g. Ollama's local port)
+    default: str | None = None
