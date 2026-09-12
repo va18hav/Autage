@@ -49,3 +49,17 @@ class ProviderSpec:
 
 class UnknownProviderError(KeyError):
     pass
+
+
+def _apply(
+    kwargs: dict,
+    temperature: float | None,
+    max_output_tokens: int | None,
+    temperature_field: str = "temperature",
+    max_tokens_field: str = "max_tokens",
+) -> dict:
+    if temperature is not None:
+        kwargs[temperature_field] = temperature
+    if max_output_tokens is not None:
+        kwargs[max_tokens_field] = max_output_tokens
+    return kwargs
