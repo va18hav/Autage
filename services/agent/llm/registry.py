@@ -87,3 +87,17 @@ def _create_openai(
 
     kwargs = {"model": model_id, "api_key": credential["api_key"]}
     return ChatOpenAI(**_apply(kwargs, temperature, max_output_tokens))
+
+
+def _create_anthropic(
+    credential: dict | None, model_id: str, temperature: float | None,
+    max_output_tokens: int | None,
+) -> BaseChatModel:
+    from langchain_anthropic import ChatAnthropic
+
+    kwargs = {"model": model_id, "api_key": credential["api_key"]}
+    # Anthropic requires an explicit max token budget; default to 4096.
+    kwargs["max_tokens"] = max_output_tokens or 4096
+    if temperature is not None:
+        kwargs["temperature"] = temperature
+    return ChatAnthropic(**kwargs)
