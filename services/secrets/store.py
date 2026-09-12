@@ -1,3 +1,4 @@
+from sqlalchemy import select
 
 from services.db.database import async_session_factory
 from services.db.models.credentials import Credential
@@ -50,3 +51,9 @@ class SecretStore:
     async def exists(purpose: str) -> bool:
         async with async_session_factory() as db:
             return bool(await db.get(Credential, purpose))
+
+    @staticmethod
+    async def list_all() -> list[Credential]:
+        async with async_session_factory() as db:
+            result = await db.execute(select(Credential).order_by(Credential.purpose))
+            return list(result.scalars().all())
