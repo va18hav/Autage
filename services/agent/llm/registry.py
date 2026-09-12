@@ -63,3 +63,17 @@ def _apply(
     if max_output_tokens is not None:
         kwargs[max_tokens_field] = max_output_tokens
     return kwargs
+
+
+# ── Provider factories ────────────────────────────────────────────────────────
+
+def _create_google(
+    credential: dict | None, model_id: str, temperature: float | None,
+    max_output_tokens: int | None,
+) -> BaseChatModel:
+    from langchain_google_genai import ChatGoogleGenerativeAI
+
+    kwargs = {"model": model_id, "google_api_key": credential["api_key"]}
+    return ChatGoogleGenerativeAI(
+        **_apply(kwargs, temperature, max_output_tokens, max_tokens_field="max_output_tokens")
+    )
