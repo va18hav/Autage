@@ -1,5 +1,7 @@
 from types import SimpleNamespace
+
 from services.agent.llm_text import ai_text
+
 
 def test_ai_text_handles_str_and_message_objects():
     assert ai_text("  hello world  ") == "hello world"
@@ -16,3 +18,7 @@ def test_ai_text_normalizes_list_of_blocks():
         ]
     )
     assert ai_text(gemini_msg) == "First paragraph.\nSecond paragraph from block."
+
+
+def test_ai_text_fallback_for_non_string_content():
+    assert ai_text(42) == "42"
