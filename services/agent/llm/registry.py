@@ -45,3 +45,7 @@ class ProviderSpec:
     @property
     def needs_credential(self) -> bool:
         return any(f.required for f in self.credential_fields)
+
+
+class UnknownProviderError(KeyError):
+    pass
