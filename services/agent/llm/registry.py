@@ -77,3 +77,13 @@ def _create_google(
     return ChatGoogleGenerativeAI(
         **_apply(kwargs, temperature, max_output_tokens, max_tokens_field="max_output_tokens")
     )
+
+
+def _create_openai(
+    credential: dict | None, model_id: str, temperature: float | None,
+    max_output_tokens: int | None,
+) -> BaseChatModel:
+    from langchain_openai import ChatOpenAI
+
+    kwargs = {"model": model_id, "api_key": credential["api_key"]}
+    return ChatOpenAI(**_apply(kwargs, temperature, max_output_tokens))
