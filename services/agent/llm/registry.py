@@ -199,3 +199,12 @@ PROVIDERS: dict[str, ProviderSpec] = {
         create=_create_ollama,
     ),
 }
+
+
+def get_provider(provider_id: str) -> ProviderSpec:
+    spec = PROVIDERS.get(provider_id)
+    if spec is None:
+        raise UnknownProviderError(
+            f"Unknown LLM provider '{provider_id}'. Known providers: {sorted(PROVIDERS)}"
+        )
+    return spec
