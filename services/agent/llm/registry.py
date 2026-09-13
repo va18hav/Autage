@@ -208,3 +208,13 @@ def get_provider(provider_id: str) -> ProviderSpec:
             f"Unknown LLM provider '{provider_id}'. Known providers: {sorted(PROVIDERS)}"
         )
     return spec
+
+
+def missing_credential_fields(spec: ProviderSpec, credential: dict | None) -> list[str]:
+    """Names of required credential fields absent (or empty) from `credential`."""
+    credential = credential or {}
+    return [
+        field.name
+        for field in spec.credential_fields
+        if field.required and not str(credential.get(field.name) or "").strip()
+    ]
