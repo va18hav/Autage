@@ -128,3 +128,8 @@ def _create_ollama(
     return ChatOllama(
         **_apply(kwargs, temperature, max_output_tokens, max_tokens_field="num_predict")
     )
+
+
+# ── Registry definition ───────────────────────────────────────────────────────
+
+_API_KEY = CredentialField(name="api_key", label="API Key")
