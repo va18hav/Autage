@@ -1,4 +1,28 @@
-from services.agent.llm.registry import get_provider, missing_credential_fields
+import pytest
+
+from services.agent.llm.registry import (
+    PROVIDERS,
+    UnknownProviderError,
+    catalog,
+    catalog_entry,
+    get_provider,
+    missing_credential_fields,
+)
+
+
+def test_catalog_and_get_provider():
+    entries = catalog()
+    assert len(entries) == len(PROVIDERS)
+
+    for pid in ("google", "openai", "anthropic", "openrouter", "ollama"):
+        spec = get_provider(pid)
+        entry = catalog_entry(spec)
+        assert entry["id"] == pid
+        assert len(entry["models"]) >= 1
+
+    with pytest.raises(UnknownProviderError):
+        get_provider("unknown_provider")
+
 
 def test_missing_credential_fields_and_needs_credential():
     openai = get_provider("openai")

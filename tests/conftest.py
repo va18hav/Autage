@@ -2,10 +2,16 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID, uuid4
+import pytest
 from services.db.models.credentials import Credential, LlmStepConfig
 from services.db.models.incident import Incident, IncidentStatus, IncidentStep
 from services.db.models.runbooks import Runbook, RunbookSection
 from services.db.models.user import User
+
+@pytest.fixture
+def anyio_backend():
+    return "asyncio"
+
 
 class FakeScalarResult:
     def __init__(self, items: list[Any]):
