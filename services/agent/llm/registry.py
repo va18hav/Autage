@@ -133,3 +133,69 @@ def _create_ollama(
 # ── Registry definition ───────────────────────────────────────────────────────
 
 _API_KEY = CredentialField(name="api_key", label="API Key")
+
+PROVIDERS: dict[str, ProviderSpec] = {
+    "google": ProviderSpec(
+        id="google",
+        display_name="Google Gemini",
+        credential_fields=(_API_KEY,),
+        models=(
+            ModelSpec("gemini-3.7-flash", "Gemini 3.7 Flash", "fast"),
+            ModelSpec("gemini-2.5-flash", "Gemini 2.5 Flash", "fast"),
+            ModelSpec("gemini-2.5-pro", "Gemini 2.5 Pro", "frontier"),
+        ),
+        create=_create_google,
+    ),
+    "openai": ProviderSpec(
+        id="openai",
+        display_name="OpenAI",
+        credential_fields=(_API_KEY,),
+        models=(
+            ModelSpec("gpt-4o-mini", "GPT-4o mini", "fast"),
+            ModelSpec("gpt-4.1-mini", "GPT-4.1 mini", "balanced"),
+            ModelSpec("gpt-4.1", "GPT-4.1", "frontier"),
+        ),
+        create=_create_openai,
+    ),
+    "anthropic": ProviderSpec(
+        id="anthropic",
+        display_name="Anthropic",
+        credential_fields=(_API_KEY,),
+        models=(
+            ModelSpec("claude-3-5-haiku-latest", "Claude 3.5 Haiku", "fast"),
+            ModelSpec("claude-sonnet-4", "Claude Sonnet 4", "balanced"),
+            ModelSpec("claude-opus-4", "Claude Opus 4", "frontier"),
+        ),
+        create=_create_anthropic,
+    ),
+    "openrouter": ProviderSpec(
+        id="openrouter",
+        display_name="OpenRouter",
+        credential_fields=(_API_KEY,),
+        models=(
+            ModelSpec("openai/gpt-4o-mini", "GPT-4o mini", "fast"),
+            ModelSpec("anthropic/claude-3.5-sonnet", "Claude 3.5 Sonnet", "balanced"),
+            ModelSpec("google/gemini-2.5-pro", "Gemini 2.5 Pro", "frontier"),
+        ),
+        create=_create_openrouter,
+    ),
+    "ollama": ProviderSpec(
+        id="ollama",
+        display_name="Ollama (local)",
+        credential_fields=(
+            CredentialField(
+                name="base_url",
+                label="Ollama Server URL",
+                is_secret=False,
+                required=False,
+                default="http://localhost:11434",
+            ),
+        ),
+        models=(
+            ModelSpec("llama3.2", "Llama 3.2", "fast"),
+            ModelSpec("qwen2.5:7b", "Qwen 2.5 7B", "balanced"),
+            ModelSpec("deepseek-r1:14b", "DeepSeek R1 14B", "frontier"),
+        ),
+        create=_create_ollama,
+    ),
+}
