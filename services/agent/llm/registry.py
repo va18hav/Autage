@@ -6,7 +6,7 @@ provider classes, so adding a provider is a change to this file alone.
 """
 
 from dataclasses import dataclass
-from typing import Callable, Literal
+from typing import Any, Callable, Literal
 
 from langchain_core.language_models.chat_models import BaseChatModel
 
@@ -218,3 +218,24 @@ def missing_credential_fields(spec: ProviderSpec, credential: dict | None) -> li
         for field in spec.credential_fields
         if field.required and not str(credential.get(field.name) or "").strip()
     ]
+
+
+def catalog_entry(spec: ProviderSpec) -> dict[str, Any]:
+    """Serializable single-provider entry for the API."""
+    return {
+        "id": spec.id,
+        "display_name": spec.display_name,
+        "models": [
+            {"id": m.id, "label": m.label, "tier": m.tier} for m in spec.models
+        ],
+        "credential_fields": [
+            {
+                "name": f.name,
+                "label": f.label,
+                "is_secret": f.is_secret,
+                "required": f.required,
+                "default": f.default,
+            }
+            for f in spec.credential_fields
+        ],
+    }
