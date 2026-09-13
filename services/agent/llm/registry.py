@@ -239,3 +239,8 @@ def catalog_entry(spec: ProviderSpec) -> dict[str, Any]:
             for f in spec.credential_fields
         ],
     }
+
+
+def catalog() -> list[dict[str, Any]]:
+    """Serializable provider/model catalog for the API."""
+    return [catalog_entry(spec) for spec in PROVIDERS.values()]
