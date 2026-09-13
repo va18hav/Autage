@@ -115,3 +115,16 @@ def _create_openrouter(
         "base_url": "https://openrouter.ai/api/v1",
     }
     return ChatOpenAI(**_apply(kwargs, temperature, max_output_tokens))
+
+
+def _create_ollama(
+    credential: dict | None, model_id: str, temperature: float | None,
+    max_output_tokens: int | None,
+) -> BaseChatModel:
+    from langchain_ollama import ChatOllama
+
+    base_url = (credential or {}).get("base_url") or "http://localhost:11434"
+    kwargs = {"model": model_id, "base_url": base_url}
+    return ChatOllama(
+        **_apply(kwargs, temperature, max_output_tokens, max_tokens_field="num_predict")
+    )
