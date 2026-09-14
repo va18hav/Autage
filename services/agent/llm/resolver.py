@@ -8,6 +8,7 @@ resolver is installed for the duration of the run and every agent node calls
 from dataclasses import dataclass
 from enum import Enum
 
+from langchain_core.language_models.chat_models import BaseChatModel
 from sqlalchemy import select
 
 from services.agent.llm import registry
@@ -129,3 +130,35 @@ class LlmResolver:
                 )
 
         return cls(steps=steps, credentials=credentials)
+
+    def get_llm(self, step_key: str) -> BaseChatModel:
+        """Build the chat model for a pipeline step (cheapest at first use)."""
+        selection = self._steps.get(step_key)
+        if selection is None:
+            raise LlmConfigError(
+                f"Unknown pipeline step '{step_key}'. Valid steps: "
+                f"{[s.value for s in StepKey]}"
+            )
+
+        try:
+            spec = registry.get_provider(selection.provider_id)
+        except registry.UnknownProviderError as exc:
+            raise LlmConfigError(
+                f"Step '{step_key}' is configured to use unknown provider "
+                f"'{selection.provider_id}'. Fix it in Settings → Model by step."
+            ) from exc
+
+        credential = self._credentials.get(spec.id)
+        missing = registry.missing_credential_fields(spec, credential)
+        if missing:
+            raise LlmConfigError(
+                f"No valid credential configured for provider '{spec.display_name}' "
+                f"(\"{spec.id}\") — missing: {missing}. Add the key in Settings → Integrations."
+            )
+
+        return spec.create(
+            credential=credential,
+            model_id=selection.model_id,
+            temperature=selection.temperature,
+            max_output_tokens=selection.max_output_tokens,
+        )
