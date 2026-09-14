@@ -28,3 +28,12 @@ STEP_LABELS: dict[str, str] = {
     StepKey.RUNBOOKS: "Runbook reasoning",
     StepKey.RECOMMENDATIONS: "Recommended steps",
 }
+
+# Legacy bridge: a provider whose key only lives in .env still works even
+# though credentials are DB-only going forward. DB rows take precedence.
+_ENV_CREDENTIAL_FALLBACK = {
+    "google": "GOOGLE_API_KEY",
+    "openai": "OPENAI_API_KEY",
+    "anthropic": "ANTHROPIC_API_KEY",
+    "openrouter": "OPENROUTER_API_KEY",
+}
