@@ -8,7 +8,12 @@ resolver is installed for the duration of the run and every agent node calls
 from dataclasses import dataclass
 from enum import Enum
 
+from sqlalchemy import select
 
+from services.agent.llm import registry
+from services.db.database import async_session_factory
+from services.db.models.credentials import LlmStepConfig
+from services.secrets.store import SecretStore
 
 
 class LlmConfigError(RuntimeError):
@@ -76,3 +81,51 @@ class LlmResolver:
     ):
         self._steps = steps
         self._credentials = credentials
+
+    @classmethod
+    async def load(cls) -> "LlmResolver":
+        """Read step configs + credentials from the DB exactly once per run."""
+        async with async_session_factory() as db:
+            rows = (
+                await db.execute(
+                    select(LlmStepConfig).where(
+                        LlmStepConfig.step_key.in_([s.value for s in StepKey])
+                    )
+                )
+            ).scalars().all()
+
+        # Store only decrypted payloads belonging to providers we can use
+        credentials: dict[str, dict] = {}
+        for provider_id in registry.PROVIDERS:
+            payload = await SecretStore.fetch_payload(provider_id)
+            if payload:
+                credentials[provider_id] = payload
+            else:
+                env_key = _env_credential(provider_id)
+                if env_key:
+                    credentials[provider_id] = {"api_key": env_key}
+
+        steps = {}
+        for key in StepKey:
+            row = next((r for r in rows if r.step_key == key), None)
+            if row is not None:
+                steps[key] = StepSelection(
+                    step_key=key,
+                    provider_id=row.provider_id,
+                    model_id=row.model_id,
+                    temperature=row.temperature,
+                    max_output_tokens=row.max_output_tokens,
+                    is_default=False,
+                )
+            else:
+                provider_id, model_id = DEFAULT_STEP_MODELS[key]
+                steps[key] = StepSelection(
+                    step_key=key,
+                    provider_id=provider_id,
+                    model_id=model_id,
+                    temperature=None,
+                    max_output_tokens=None,
+                    is_default=True,
+                )
+
+        return cls(steps=steps, credentials=credentials)
