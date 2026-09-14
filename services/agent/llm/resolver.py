@@ -162,3 +162,6 @@ class LlmResolver:
             temperature=selection.temperature,
             max_output_tokens=selection.max_output_tokens,
         )
+
+    def describe(self) -> dict[str, StepSelection]:
+        return dict(self._steps)
