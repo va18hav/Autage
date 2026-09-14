@@ -5,6 +5,7 @@ resolver is installed for the duration of the run and every agent node calls
 `get_llm(step_key)` — no node knows about concrete provider SDKs.
 """
 
+from enum import Enum
 
 
 
@@ -12,3 +13,10 @@ resolver is installed for the duration of the run and every agent node calls
 class LlmConfigError(RuntimeError):
     """A user-fixable configuration problem (missing provider credential,
     unknown provider/model). Message is safe to surface in incident errors."""
+
+
+class StepKey(str, Enum):
+    TRIAGE = "triage"
+    DIAGNOSTICS = "diagnostics"
+    RUNBOOKS = "runbooks"
+    RECOMMENDATIONS = "recommendations"
