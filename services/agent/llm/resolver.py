@@ -5,6 +5,7 @@ resolver is installed for the duration of the run and every agent node calls
 `get_llm(step_key)` — no node knows about concrete provider SDKs.
 """
 
+from dataclasses import dataclass
 from enum import Enum
 
 
@@ -54,3 +55,14 @@ def _env_credential(provider_id: str) -> str | None:
 DEFAULT_STEP_MODELS: dict[str, tuple[str, str]] = {
     step_key: ("google", "gemini-3.7-flash") for step_key in StepKey
 }
+
+
+@dataclass(frozen=True)
+class StepSelection:
+    step_key: str
+    provider_id: str
+    model_id: str
+    temperature: float | None
+    max_output_tokens: int | None
+    # True when this step has no DB row and is using the built-in default
+    is_default: bool
