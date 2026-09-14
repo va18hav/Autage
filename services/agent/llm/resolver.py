@@ -48,3 +48,9 @@ def _env_credential(provider_id: str) -> str | None:
     # pydantic-settings loads .env into `settings`, not os.environ
     value = getattr(settings, env_name, None) or ""
     return str(value).strip() or None
+
+# Behavior-preserving defaults (what the nodes were hard-coded to before).
+# Override via the Settings API — rows in llm_step_configs replace these.
+DEFAULT_STEP_MODELS: dict[str, tuple[str, str]] = {
+    step_key: ("google", "gemini-3.7-flash") for step_key in StepKey
+}
