@@ -165,3 +165,14 @@ class LlmResolver:
 
     def describe(self) -> dict[str, StepSelection]:
         return dict(self._steps)
+
+
+def friendly_error(exc: BaseException, steps: dict[str, str] | None = None) -> str:
+    """Best-effort human message when a run fails inside a provider SDK."""
+    message = str(exc).lower()
+    if any(marker in message for marker in ("401", "unauthorized", "api key", "api_key")):
+        return (
+            f"Authentication with the LLM provider failed ({exc.__class__.__name__}). "
+            "Check the API key in Settings → Integrations."
+        )
+    return f"{exc.__class__.__name__}: {exc}"
