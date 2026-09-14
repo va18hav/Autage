@@ -66,3 +66,13 @@ class StepSelection:
     max_output_tokens: int | None
     # True when this step has no DB row and is using the built-in default
     is_default: bool
+
+
+class LlmResolver:
+    def __init__(
+        self,
+        steps: dict[str, StepSelection],
+        credentials: dict[str, dict],
+    ):
+        self._steps = steps
+        self._credentials = credentials
