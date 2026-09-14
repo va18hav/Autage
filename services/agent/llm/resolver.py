@@ -37,3 +37,14 @@ _ENV_CREDENTIAL_FALLBACK = {
     "anthropic": "ANTHROPIC_API_KEY",
     "openrouter": "OPENROUTER_API_KEY",
 }
+
+
+def _env_credential(provider_id: str) -> str | None:
+    from services.config import settings
+
+    env_name = _ENV_CREDENTIAL_FALLBACK.get(provider_id)
+    if not env_name:
+        return None
+    # pydantic-settings loads .env into `settings`, not os.environ
+    value = getattr(settings, env_name, None) or ""
+    return str(value).strip() or None
