@@ -20,3 +20,11 @@ class StepKey(str, Enum):
     DIAGNOSTICS = "diagnostics"
     RUNBOOKS = "runbooks"
     RECOMMENDATIONS = "recommendations"
+
+
+STEP_LABELS: dict[str, str] = {
+    StepKey.TRIAGE: "Triage",
+    StepKey.DIAGNOSTICS: "Diagnostics (log planning + summary)",
+    StepKey.RUNBOOKS: "Runbook reasoning",
+    StepKey.RECOMMENDATIONS: "Recommended steps",
+}
