@@ -5,6 +5,7 @@ resolver is installed for the duration of the run and every agent node calls
 `get_llm(step_key)` — no node knows about concrete provider SDKs.
 """
 
+from contextvars import ContextVar
 from dataclasses import dataclass
 from enum import Enum
 
@@ -176,3 +177,6 @@ def friendly_error(exc: BaseException, steps: dict[str, str] | None = None) -> s
             "Check the API key in Settings → Integrations."
         )
     return f"{exc.__class__.__name__}: {exc}"
+
+
+_resolver: ContextVar[LlmResolver | None] = ContextVar("llm_resolver", default=None)
