@@ -185,3 +185,7 @@ _resolver: ContextVar[LlmResolver | None] = ContextVar("llm_resolver", default=N
 def set_resolver(resolver: LlmResolver):
     """Install the resolver for the current context (per incident run)."""
     return _resolver.set(resolver)
+
+
+def reset_resolver(token) -> None:
+    _resolver.reset(token)
