@@ -189,3 +189,14 @@ def set_resolver(resolver: LlmResolver):
 
 def reset_resolver(token) -> None:
     _resolver.reset(token)
+
+
+def get_llm(step_key: str) -> BaseChatModel:
+    """The single entry point agent nodes use to obtain their chat model."""
+    resolver = _resolver.get()
+    if resolver is None:
+        raise LlmConfigError(
+            "LLM resolver not initialized — call LlmResolver.load() and "
+            "set_resolver() before running the agent graph."
+        )
+    return resolver.get_llm(step_key)
