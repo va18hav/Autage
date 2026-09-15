@@ -180,3 +180,8 @@ def friendly_error(exc: BaseException, steps: dict[str, str] | None = None) -> s
 
 
 _resolver: ContextVar[LlmResolver | None] = ContextVar("llm_resolver", default=None)
+
+
+def set_resolver(resolver: LlmResolver):
+    """Install the resolver for the current context (per incident run)."""
+    return _resolver.set(resolver)
