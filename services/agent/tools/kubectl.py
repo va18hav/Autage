@@ -135,3 +135,18 @@ def get_pod_logs(namespace: str, pod_name: str, tail: int = 100) -> dict:
         rest_fallback_path=f"/api/v1/namespaces/{ns}/pods/{pod}/log?tailLines={tail}",
         accept="text/plain",
     )
+
+
+def get_pod_logs_previous(namespace: str, pod_name: str, tail: int = 100) -> dict:
+    """
+    Fetches logs from the *previous* (crashed) container instance.
+    Useful for OOMKills and CrashLoopBackOffs.
+    kubectl logs <pod_name> -n <namespace> --previous --tail=<tail>
+    """
+    ns = urllib.parse.quote(namespace)
+    pod = urllib.parse.quote(pod_name)
+    return _run(
+        ["kubectl", "logs", pod_name, "-n", namespace, "--previous", f"--tail={tail}"],
+        rest_fallback_path=f"/api/v1/namespaces/{ns}/pods/{pod}/log?previous=true&tailLines={tail}",
+        accept="text/plain",
+    )
