@@ -7,6 +7,8 @@ from services.db.models.credentials import Credential, LlmStepConfig
 from services.db.models.incident import Incident, IncidentStatus, IncidentStep
 from services.db.models.runbooks import Runbook, RunbookSection
 from services.db.models.user import User
+from services.secrets.crypto import _decrypt_payload, encrypt_payload
+from services.secrets.store import SecretStore
 
 @pytest.fixture
 def anyio_backend():
@@ -244,3 +246,35 @@ class InMemoryAsyncSession:
             return FakeExecuteResult(ordered)
 
         return FakeExecuteResult([])
+
+
+@pytest.fixture
+def in_memory_db(monkeypatch):
+    session = InMemoryAsyncSession()
+
+    async def _fake_save(purpose: str, payload: dict, preview: str | None = None):
+        now = datetime.now(timezone.utc)
+        cred = Credential(
+            purpose=purpose,
+            encrypted_payload=encrypt_payload(payload),
+            preview=preview,
+        )
+        cred.created_at = now
+        cred.updated_at = now
+        session.credentials[purpose] = cred
+        return cred
+
+    async def _fake_fetch_payload(purpose: str):
+        cred = session.credentials.get(purpose)
+        if not cred:
+            return None
+        return _decrypt_payload(cred.encrypted_payload)
+
+    async def _fake_delete(purpose: str) -> bool:
+        return session.credentials.pop(purpose, None) is not None
+
+    monkeypatch.setattr(SecretStore, "save", _fake_save)
+    monkeypatch.setattr(SecretStore, "fetch_payload", _fake_fetch_payload)
+    monkeypatch.setattr(SecretStore, "delete", _fake_delete)
+
+    return session
