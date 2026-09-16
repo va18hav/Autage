@@ -132,3 +132,37 @@ payment-service-6c9df7b8d-abc           1/1     Running            0          2d
 user-service-5f8bc6c7d-def              1/1     Running            0          2d
 notification-service-4d7ab5b6c-ghi      1/1     Running            0          2d
 """
+
+_GET_DEPLOYMENT = """\
+{
+  "apiVersion": "apps/v1",
+  "kind": "Deployment",
+  "metadata": {
+    "name": "auth-service",
+    "namespace": "production"
+  },
+  "spec": {
+    "replicas": 1,
+    "strategy": { "type": "RollingUpdate" }
+  },
+  "status": {
+    "replicas": 1,
+    "updatedReplicas": 1,
+    "readyReplicas": 0,
+    "availableReplicas": 0,
+    "conditions": [
+      {
+        "type": "Available",
+        "status": "False",
+        "reason": "MinimumReplicasUnavailable",
+        "message": "Deployment does not have minimum availability."
+      },
+      {
+        "type": "Progressing",
+        "status": "True",
+        "reason": "ReplicaSetUpdated"
+      }
+    ]
+  }
+}
+"""
