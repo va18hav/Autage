@@ -177,3 +177,16 @@ def describe_pod(namespace: str, pod_name: str) -> dict:
         ["kubectl", "describe", "pod", pod_name, "-n", namespace],
         rest_fallback_path=f"/api/v1/namespaces/{ns}/pods/{pod}",
     )
+
+
+def get_events(namespace: str) -> dict:
+    """
+    Lists recent events in the namespace sorted by time.
+    Good for spotting evictions, scheduling failures, image pull errors.
+    kubectl get events -n <namespace> --sort-by=.lastTimestamp
+    """
+    ns = urllib.parse.quote(namespace)
+    return _run(
+        ["kubectl", "get", "events", "-n", namespace, "--sort-by=.lastTimestamp"],
+        rest_fallback_path=f"/api/v1/namespaces/{ns}/events",
+    )
