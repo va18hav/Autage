@@ -112,3 +112,15 @@ Events:
   Normal   Pulled      18s    kubelet  Successfully pulled image company/auth-service:2.4.1
   Normal   Started     15s    kubelet  Started container auth-service
 """
+
+_GET_EVENTS = """\
+LAST SEEN   TYPE      REASON      OBJECT                                  MESSAGE
+4m          Warning   OOMKilling  pod/auth-service-7d84b8f58b-xyz         Memory cgroup out of memory: Kill process 1 (auth-service) score 999 or sacrifice child
+3m          Warning   BackOff     pod/auth-service-7d84b8f58b-xyz         Back-off restarting failed container auth-service in pod auth-service-7d84b8f58b-xyz
+2m30s       Normal    Killing     pod/auth-service-7d84b8f58b-xyz         Stopping container auth-service
+2m15s       Normal    Pulled      pod/auth-service-7d84b8f58b-xyz         Successfully pulled image company/auth-service:2.4.1
+2m10s       Normal    Created     pod/auth-service-7d84b8f58b-xyz         Created container auth-service
+2m8s        Normal    Started     pod/auth-service-7d84b8f58b-xyz         Started container auth-service
+1m          Warning   OOMKilling  pod/auth-service-7d84b8f58b-xyz         Memory cgroup out of memory: Kill process 1 (auth-service) score 999 or sacrifice child
+30s         Warning   BackOff     pod/auth-service-7d84b8f58b-xyz         Back-off restarting failed container
+"""
