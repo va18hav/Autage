@@ -121,3 +121,17 @@ def _run(args: list[str], rest_fallback_path: Optional[str] = None, accept: str 
         }
     except subprocess.TimeoutExpired:
         return {"ok": False, "output": "", "error": "kubectl command timed out after 20s"}
+
+
+def get_pod_logs(namespace: str, pod_name: str, tail: int = 100) -> dict:
+    """
+    Fetches the last `tail` lines of logs from a pod.
+    kubectl logs <pod_name> -n <namespace> --tail=<tail>
+    """
+    ns = urllib.parse.quote(namespace)
+    pod = urllib.parse.quote(pod_name)
+    return _run(
+        ["kubectl", "logs", pod_name, "-n", namespace, f"--tail={tail}"],
+        rest_fallback_path=f"/api/v1/namespaces/{ns}/pods/{pod}/log?tailLines={tail}",
+        accept="text/plain",
+    )
