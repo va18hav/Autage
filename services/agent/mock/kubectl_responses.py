@@ -124,3 +124,11 @@ LAST SEEN   TYPE      REASON      OBJECT                                  MESSAG
 1m          Warning   OOMKilling  pod/auth-service-7d84b8f58b-xyz         Memory cgroup out of memory: Kill process 1 (auth-service) score 999 or sacrifice child
 30s         Warning   BackOff     pod/auth-service-7d84b8f58b-xyz         Back-off restarting failed container
 """
+
+_LIST_PODS = """\
+NAME                                    READY   STATUS             RESTARTS   AGE
+auth-service-7d84b8f58b-xyz             0/1     CrashLoopBackOff   4          18m
+payment-service-6c9df7b8d-abc           1/1     Running            0          2d
+user-service-5f8bc6c7d-def              1/1     Running            0          2d
+notification-service-4d7ab5b6c-ghi      1/1     Running            0          2d
+"""
