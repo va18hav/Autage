@@ -163,3 +163,17 @@ def get_pod_status(namespace: str, pod_name: str) -> dict:
         ["kubectl", "get", "pod", pod_name, "-n", namespace, "-o", "json"],
         rest_fallback_path=f"/api/v1/namespaces/{ns}/pods/{pod}",
     )
+
+
+def describe_pod(namespace: str, pod_name: str) -> dict:
+    """
+    Human-readable pod description — events, resource limits, restart count,
+    liveness/readiness probe failures, OOMKill reasons.
+    kubectl describe pod <pod_name> -n <namespace>
+    """
+    ns = urllib.parse.quote(namespace)
+    pod = urllib.parse.quote(pod_name)
+    return _run(
+        ["kubectl", "describe", "pod", pod_name, "-n", namespace],
+        rest_fallback_path=f"/api/v1/namespaces/{ns}/pods/{pod}",
+    )
