@@ -150,3 +150,16 @@ def get_pod_logs_previous(namespace: str, pod_name: str, tail: int = 100) -> dic
         rest_fallback_path=f"/api/v1/namespaces/{ns}/pods/{pod}/log?previous=true&tailLines={tail}",
         accept="text/plain",
     )
+
+
+def get_pod_status(namespace: str, pod_name: str) -> dict:
+    """
+    Gets the full JSON status of a pod — phase, conditions, container states.
+    kubectl get pod <pod_name> -n <namespace> -o json
+    """
+    ns = urllib.parse.quote(namespace)
+    pod = urllib.parse.quote(pod_name)
+    return _run(
+        ["kubectl", "get", "pod", pod_name, "-n", namespace, "-o", "json"],
+        rest_fallback_path=f"/api/v1/namespaces/{ns}/pods/{pod}",
+    )
