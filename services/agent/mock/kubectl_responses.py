@@ -70,3 +70,45 @@ _POD_STATUS_JSON = """\
   }
 }
 """
+
+_DESCRIBE_POD = """\
+Name:             auth-service-7d84b8f58b-xyz
+Namespace:        production
+Node:             ip-10-0-1-45.ec2.internal/10.0.1.45
+Start Time:       Tue, 30 Sep 2026 12:40:00 +0000
+Labels:           app=auth-service
+Status:           Running
+
+Containers:
+  auth-service:
+    Image:          company/auth-service:2.4.1
+    Limits:
+      cpu:          500m
+      memory:       1Gi
+    Requests:
+      cpu:          250m
+      memory:       512Mi
+    Liveness:       http-get http://:8080/healthz delay=30s timeout=5s period=10s
+    Readiness:      http-get http://:8080/readyz delay=10s timeout=3s period=5s
+    Last State:     Terminated
+      Reason:       OOMKilled
+      Exit Code:    137
+      Started:      Tue, 30 Sep 2026 12:35:00 +0000
+      Finished:     Tue, 30 Sep 2026 12:39:01 +0000
+    Ready:          False
+    Restart Count:  4
+
+Conditions:
+  Type              Status
+  Initialized       True
+  Ready             False
+  ContainersReady   False
+
+Events:
+  Type     Reason      Age    From     Message
+  ----     ------      ---    ----     -------
+  Warning  OOMKilling  4m     kubelet  Memory cgroup out of memory: Kill process 1 (auth-service) score 999
+  Warning  BackOff     2m     kubelet  Back-off restarting failed container auth-service
+  Normal   Pulled      18s    kubelet  Successfully pulled image company/auth-service:2.4.1
+  Normal   Started     15s    kubelet  Started container auth-service
+"""
