@@ -190,3 +190,15 @@ def get_events(namespace: str) -> dict:
         ["kubectl", "get", "events", "-n", namespace, "--sort-by=.lastTimestamp"],
         rest_fallback_path=f"/api/v1/namespaces/{ns}/events",
     )
+
+
+def list_pods(namespace: str) -> dict:
+    """
+    Lists all pods in a namespace with their status.
+    kubectl get pods -n <namespace>
+    """
+    ns = urllib.parse.quote(namespace)
+    return _run(
+        ["kubectl", "get", "pods", "-n", namespace],
+        rest_fallback_path=f"/api/v1/namespaces/{ns}/pods",
+    )
