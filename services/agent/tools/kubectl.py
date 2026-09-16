@@ -1,5 +1,7 @@
 import contextvars
+import shutil
 import ssl
+import subprocess
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -49,3 +51,73 @@ def _http_k8s_get(server_url: str, token: str, path: str, accept: str = "applica
         return {"ok": False, "output": "", "error": f"HTTP {exc.code}: {err_body}"}
     except Exception as exc:
         return {"ok": False, "output": "", "error": str(exc)}
+
+
+def _run(args: list[str], rest_fallback_path: Optional[str] = None, accept: str = "application/json") -> dict:
+    """
+    Executes a kubectl command against the configured Kubernetes cluster (using
+    the ServiceAccount token + Cluster API URL from the DB if present).
+    Falls back to mock responses when no cluster is configured in DB and
+    MOCK_KUBECTL=true.
+    """
+    creds = _cluster_credentials.get()
+    has_db_cluster = bool(creds and creds.get("server_url") and creds.get("token"))
+
+    if not has_db_cluster and settings.MOCK_KUBECTL:
+        from services.agent.mock.kubectl_responses import get_mock_response
+        return get_mock_response(args)
+
+    if has_db_cluster:
+        server_url = str(creds["server_url"]).strip().rstrip("/")
+        token = str(creds["token"]).strip()
+
+        # If kubectl CLI is available on the host, pass --server and --token
+        if shutil.which("kubectl"):
+            auth_args = [
+                *args,
+                f"--server={server_url}",
+                f"--token={token}",
+            ]
+            if not settings.K8S_VERIFY_SSL:
+                auth_args.append("--insecure-skip-tls-verify=true")
+            try:
+                result = subprocess.run(
+                    auth_args,
+                    capture_output=True,
+                    text=True,
+                    timeout=20,
+                )
+                err = result.stderr.replace(token, "***") if result.stderr else None
+                return {
+                    "ok": result.returncode == 0,
+                    "output": result.stdout,
+                    "error": err if result.returncode != 0 else None,
+                }
+            except subprocess.TimeoutExpired:
+                return {"ok": False, "output": "", "error": "kubectl command timed out after 20s"}
+
+        # Fallback: direct HTTPS call to the Kubernetes API Server if kubectl is not installed
+        if rest_fallback_path:
+            return _http_k8s_get(server_url, token, rest_fallback_path, accept=accept)
+
+    # Local/in-cluster default kubectl execution
+    try:
+        result = subprocess.run(
+            args,
+            capture_output=True,
+            text=True,
+            timeout=20,
+        )
+        return {
+            "ok": result.returncode == 0,
+            "output": result.stdout,
+            "error": result.stderr if result.returncode != 0 else None,
+        }
+    except FileNotFoundError:
+        return {
+            "ok": False,
+            "output": "",
+            "error": "kubectl binary not found on host and no cluster configured in Integrations.",
+        }
+    except subprocess.TimeoutExpired:
+        return {"ok": False, "output": "", "error": "kubectl command timed out after 20s"}
