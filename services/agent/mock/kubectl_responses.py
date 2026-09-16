@@ -33,3 +33,40 @@ _POD_LOGS_PREVIOUS = """\
 2026-09-30T12:39:01Z FATAL Out of memory: Kill process 1 (auth-service) score 999 or sacrifice child
 Killed
 """
+
+_POD_STATUS_JSON = """\
+{
+  "apiVersion": "v1",
+  "kind": "Pod",
+  "metadata": {
+    "name": "auth-service-7d84b8f58b-xyz",
+    "namespace": "production",
+    "labels": { "app": "auth-service" }
+  },
+  "status": {
+    "phase": "Running",
+    "conditions": [
+      { "type": "Ready", "status": "False", "reason": "ContainersNotReady" }
+    ],
+    "containerStatuses": [
+      {
+        "name": "auth-service",
+        "ready": false,
+        "restartCount": 4,
+        "lastState": {
+          "terminated": {
+            "reason": "OOMKilled",
+            "exitCode": 137,
+            "finishedAt": "2026-09-30T12:43:21Z"
+          }
+        },
+        "state": {
+          "running": {
+            "startedAt": "2026-09-30T12:43:35Z"
+          }
+        }
+      }
+    ]
+  }
+}
+"""
