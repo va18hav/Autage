@@ -166,3 +166,44 @@ _GET_DEPLOYMENT = """\
   }
 }
 """
+
+
+# ── Response router ───────────────────────────────────────────────────────────
+
+def get_mock_response(args: list[str]) -> dict:
+    """
+    Given the args list that would have been passed to subprocess.run(),
+    return a realistic pre-canned kubectl response.
+
+    args examples:
+      ["kubectl", "logs",     "auth-service-...", "-n", "production", "--tail=100"]
+      ["kubectl", "logs",     "auth-service-...", "-n", "production", "--previous", "--tail=100"]
+      ["kubectl", "get",      "pod",  "auth-service-...", "-n", "production", "-o", "json"]
+      ["kubectl", "get",      "pods", "-n", "production"]
+      ["kubectl", "get",      "events", "-n", "production", "--sort-by=.lastTimestamp"]
+      ["kubectl", "get",      "deployment", "auth-service", "-n", "production", "-o", "json"]
+      ["kubectl", "describe", "pod",  "auth-service-...", "-n", "production"]
+    """
+    verb = args[1] if len(args) > 1 else ""
+    resource = args[2] if len(args) > 2 else ""
+
+    if verb == "logs":
+        if "--previous" in args:
+            return {"ok": True, "output": _POD_LOGS_PREVIOUS, "error": None}
+        return {"ok": True, "output": _POD_LOGS, "error": None}
+
+    if verb == "get":
+        if resource == "pod":
+            return {"ok": True, "output": _POD_STATUS_JSON, "error": None}
+        if resource == "pods":
+            return {"ok": True, "output": _LIST_PODS, "error": None}
+        if resource == "events":
+            return {"ok": True, "output": _GET_EVENTS, "error": None}
+        if resource == "deployment":
+            return {"ok": True, "output": _GET_DEPLOYMENT, "error": None}
+
+    if verb == "describe":
+        return {"ok": True, "output": _DESCRIBE_POD, "error": None}
+
+    # Fallback — unknown command
+    return {"ok": False, "output": "", "error": f"mock: unrecognised command args={args}"}
