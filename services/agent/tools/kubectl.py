@@ -1,4 +1,5 @@
 import contextvars
+import json
 import shutil
 import ssl
 import subprocess
@@ -201,4 +202,18 @@ def list_pods(namespace: str) -> dict:
     return _run(
         ["kubectl", "get", "pods", "-n", namespace],
         rest_fallback_path=f"/api/v1/namespaces/{ns}/pods",
+    )
+
+
+def get_deployment(namespace: str, deployment_name: str) -> dict:
+    """
+    Gets the JSON status of a deployment — desired vs available replicas,
+    rollout strategy, conditions.
+    kubectl get deployment <deployment_name> -n <namespace> -o json
+    """
+    ns = urllib.parse.quote(namespace)
+    dep = urllib.parse.quote(deployment_name)
+    return _run(
+        ["kubectl", "get", "deployment", deployment_name, "-n", namespace, "-o", "json"],
+        rest_fallback_path=f"/apis/apps/v1/namespaces/{ns}/deployments/{dep}",
     )
