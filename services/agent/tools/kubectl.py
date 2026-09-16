@@ -8,3 +8,7 @@ _cluster_credentials: contextvars.ContextVar[Optional[dict]] = contextvars.Conte
     "k8s_cluster_credentials",
     default=None,
 )
+
+
+def set_cluster_credentials(creds: Optional[dict]) -> contextvars.Token:
+    return _cluster_credentials.set(creds)
