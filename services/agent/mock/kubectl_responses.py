@@ -22,3 +22,14 @@ _POD_LOGS = """\
 2026-09-30T12:43:18Z ERROR Failed to process token refresh request: out of memory
 2026-09-30T12:43:21Z FATAL signal: killed
 """
+
+_POD_LOGS_PREVIOUS = """\
+2026-09-30T12:35:00Z INFO  auth-service starting up version=2.4.1
+2026-09-30T12:35:01Z INFO  Connected to database pool_size=20
+2026-09-30T12:36:44Z WARN  Heap usage elevated heap_used=800MB heap_limit=950MB
+2026-09-30T12:37:30Z WARN  Large in-memory session cache detected entries=120000 expected_max=50000
+2026-09-30T12:38:12Z WARN  GC pause exceeded threshold pause_ms=2300 threshold_ms=500
+2026-09-30T12:38:55Z ERROR Heap dump requested but insufficient memory to write
+2026-09-30T12:39:01Z FATAL Out of memory: Kill process 1 (auth-service) score 999 or sacrifice child
+Killed
+"""
