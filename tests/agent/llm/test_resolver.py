@@ -1,9 +1,18 @@
 import pytest
+
 import services.agent.llm.resolver as resolver_mod
-from services.agent.llm import LlmResolver, StepKey, get_llm, reset_resolver, set_resolver
-from services.agent.llm.resolver import friendly_error
+from services.agent.llm import (
+    LlmConfigError,
+    LlmResolver,
+    StepKey,
+    get_llm,
+    reset_resolver,
+    set_resolver,
+)
+from services.agent.llm.resolver import StepSelection, friendly_error
 from services.db.models.credentials import LlmStepConfig
 from services.secrets.store import SecretStore
+
 
 @pytest.mark.anyio
 async def test_llm_resolver_load_from_db_and_env_fallback(in_memory_db, monkeypatch):
@@ -34,6 +43,43 @@ async def test_llm_resolver_load_from_db_and_env_fallback(in_memory_db, monkeypa
         assert llm is not None
     finally:
         reset_resolver(token)
+
+
+def test_llm_resolver_error_cases():
+    # Uninitialized ContextVar
+    with pytest.raises(LlmConfigError, match="not initialized"):
+        get_llm(StepKey.TRIAGE)
+
+    resolver = LlmResolver(
+        steps={
+            StepKey.TRIAGE: StepSelection(
+                step_key=StepKey.TRIAGE,
+                provider_id="nonexistent",
+                model_id="bad",
+                temperature=None,
+                max_output_tokens=None,
+                is_default=False,
+            ),
+            StepKey.DIAGNOSTICS: StepSelection(
+                step_key=StepKey.DIAGNOSTICS,
+                provider_id="anthropic",
+                model_id="claude-sonnet-4",
+                temperature=None,
+                max_output_tokens=None,
+                is_default=False,
+            ),
+        },
+        credentials={},
+    )
+
+    with pytest.raises(LlmConfigError, match="Unknown pipeline step"):
+        resolver.get_llm("unknown_step")
+
+    with pytest.raises(LlmConfigError, match="unknown provider"):
+        resolver.get_llm(StepKey.TRIAGE)
+
+    with pytest.raises(LlmConfigError, match="No valid credential"):
+        resolver.get_llm(StepKey.DIAGNOSTICS)
 
 
 def test_friendly_error_formats_auth_and_generic_exceptions():
