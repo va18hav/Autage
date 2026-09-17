@@ -4,7 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from services.db.database import async_session_factory
-from services.db.models.runbooks import Runbook
+from services.db.models.runbooks import Runbook, RunbookSection
 
 
 async def list_runbooks() -> List[Dict[str, Any]]:
@@ -30,3 +30,52 @@ async def list_runbooks() -> List[Dict[str, Any]]:
         }
         for rb in runbooks
     ]
+
+
+async def get_runbook_sections(
+    selections: List[Dict[str, Any]],
+) -> List[Dict[str, Any]]:
+    """
+    Second tool for the refer_runbooks node: the LLM requests specific
+    sections by (runbook_title, order_index) and gets their full content.
+    """
+    if not selections:
+        return []
+
+    async with async_session_factory() as db:
+        fetched: List[Dict[str, Any]] = []
+        for sel in selections:
+            title = sel.get("runbook_title")
+            order_index = sel.get("section_order_index")
+
+            stmt = (
+                select(RunbookSection)
+                .join(Runbook, RunbookSection.runbook_id == Runbook.id)
+                .where(
+                    Runbook.title == title,
+                    RunbookSection.order_index == order_index,
+                )
+            )
+            section = (await db.execute(stmt)).scalar_one_or_none()
+
+            if section is None:
+                fetched.append(
+                    {
+                        "requested": {"runbook_title": title, "section_order_index": order_index},
+                        "heading": None,
+                        "content": None,
+                        "error": "Section not found for the requested runbook/order_index",
+                    }
+                )
+                continue
+
+            fetched.append(
+                {
+                    "requested": {"runbook_title": title, "section_order_index": order_index},
+                    "heading": section.heading,
+                    "content": section.content,
+                    "error": None,
+                }
+            )
+
+    return fetched
