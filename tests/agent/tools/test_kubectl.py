@@ -1,6 +1,19 @@
+import subprocess
 from types import SimpleNamespace
+
 import services.agent.tools.kubectl as kubectl_mod
-from services.agent.tools.kubectl import describe_pod, get_deployment, get_events, get_pod_logs, get_pod_logs_previous, get_pod_status, list_pods, reset_cluster_credentials, set_cluster_credentials
+from services.agent.tools.kubectl import (
+    describe_pod,
+    get_deployment,
+    get_events,
+    get_pod_logs,
+    get_pod_logs_previous,
+    get_pod_status,
+    list_pods,
+    reset_cluster_credentials,
+    set_cluster_credentials,
+)
+
 
 def test_mock_kubectl_responses_when_no_cluster_configured():
     token = set_cluster_credentials(None)
@@ -40,5 +53,39 @@ def test_kubectl_binary_execution_masks_token_on_stderr(monkeypatch):
         assert "secret-sa-token-123" not in res["error"]
         assert "***" in res["error"]
         assert "--server=https://k8s.internal:6443" in captured_args
+    finally:
+        reset_cluster_credentials(token)
+
+
+def test_kubectl_rest_fallback_and_timeout_handling(monkeypatch):
+    token = set_cluster_credentials(
+        {"server_url": "https://k8s.internal:6443", "token": "sa-token"}
+    )
+    try:
+        # When kubectl binary is absent, falls back to _http_k8s_get
+        monkeypatch.setattr(kubectl_mod.shutil, "which", lambda _cmd: None)
+        monkeypatch.setattr(
+            kubectl_mod,
+            "_http_k8s_get",
+            lambda server_url, tok, path, accept="application/json": {
+                "ok": True,
+                "output": f"REST:{server_url}{path}:{accept}",
+                "error": None,
+            },
+        )
+        res = get_pod_logs("production", "auth-pod", tail=10)
+        assert res["ok"] is True
+        assert "/api/v1/namespaces/production/pods/auth-pod/log?tailLines=10" in res["output"]
+
+        # Timeout handling when kubectl binary hangs
+        monkeypatch.setattr(kubectl_mod.shutil, "which", lambda _cmd: "/usr/local/bin/kubectl")
+
+        def _timeout_run(*_a, **_kw):
+            raise subprocess.TimeoutExpired(cmd="kubectl", timeout=20)
+
+        monkeypatch.setattr(kubectl_mod.subprocess, "run", _timeout_run)
+        timeout_res = describe_pod("production", "auth-pod")
+        assert timeout_res["ok"] is False
+        assert "timed out" in timeout_res["error"]
     finally:
         reset_cluster_credentials(token)
