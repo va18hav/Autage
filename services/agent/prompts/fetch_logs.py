@@ -1,5 +1,5 @@
 import json
-from typing import Dict, Any, List
+from typing import Dict, Any, Optional, List
 
 
 def build_plan_prompt(
@@ -151,4 +151,36 @@ def build_runbook_selection_prompt(
 - From the section headings above, select every section likely to contain the exact remediation procedure for this incident
 - Reference a section as (runbook_title, section_order_index) — the order_index in square brackets is what you pass back
 - If none of the sections are relevant, return an empty selection
+"""
+
+
+def build_recommended_steps_prompt(
+    incident_title: str,
+    severity: str,
+    summary: str,
+    logs_summary: str,
+    runbooks_summary: str,
+) -> str:
+    """
+    Prompt for the final recommended_steps node — takes the entire state.
+    """
+    return f"""You are the final step of an SRE agent pipeline: everything has been gathered and you must produce the concrete recommended steps for the on-call engineer.
+
+## Incident
+- Title: {incident_title}
+- Severity: {severity}
+- Triage Summary: {summary}
+
+## Kubernetes Logs Summary
+{logs_summary}
+
+## Runbook Findings
+{runbooks_summary or "No runbooks were consulted for this incident."}
+
+## Instructions
+- Produce a numbered list of concrete, ordered remediation steps
+- Prefer the verified runbook procedure when runbook findings are relevant; adapt it to the actual pod/namespace/deployment names from the logs summary
+- Each step must state exactly what to run or check — reference real resource names, values, and commands where possible
+- Cover immediate mitigation first, then verification that service is restored, then follow-up hardening
+- Keep every step actionable on its own (no meta commentary)
 """
