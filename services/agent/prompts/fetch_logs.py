@@ -1,5 +1,5 @@
 import json
-from typing import Dict, Any
+from typing import Dict, Any, List
 
 
 def build_plan_prompt(
@@ -111,4 +111,44 @@ Analyze the data below and summarize the diagnostic findings.
 - Identify which pods are affected and form a hypothesis for the most likely root cause
 - Reference the strongest evidence — actual pod names, error messages, statuses, and numbers
 - Do not use markdown headings or bullet lists
+"""
+
+
+def build_runbook_selection_prompt(
+    incident_title: str,
+    severity: str,
+    summary: str,
+    logs_summary: str,
+    runbooks: List[Dict[str, Any]],
+) -> str:
+    """
+    Prompt for the refer_runbooks node, LLM call 1:
+    pick which runbook sections to pull from the inventory.
+    """
+    inventory_lines = []
+    for rb in runbooks:
+        service = rb.get("service") or "-"
+        inventory_lines.append(f"### Runbook: \"{rb['runbook_title']}\" (service: {service})")
+        for sec in rb["sections"]:
+            inventory_lines.append(f"  - [{sec['order_index']}] {sec['heading']}")
+        if not rb["sections"]:
+            inventory_lines.append("  - (no sections)")
+
+    return f"""You are an expert SRE agent. You are resolving an active incident and a curated set of runbooks is available.
+
+## Incident
+- Title: {incident_title}
+- Severity: {severity}
+- Summary: {summary}
+
+## Diagnostics so far (k8s logs summary)
+{logs_summary}
+
+## Available Runbooks (titles and section headings only)
+{chr(10).join(inventory_lines)}
+
+## Instructions
+- From the section headings above, select every section likely to contain the exact remediation procedure for this incident
+- Reference a section as (runbook_title, section_order_index) — the order_index in square brackets is what you pass back
+- If none of the sections are relevant, return an empty selection
 """
