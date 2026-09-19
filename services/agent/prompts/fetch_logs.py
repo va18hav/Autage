@@ -82,3 +82,33 @@ else (
 - For memory/crash issues, include get_pod_logs_previous
 - pod_name and deployment_name should only be set when the tool requires them
 """
+
+
+def build_summary_prompt(incident_title: str, severity: str, summary: str, logs: Dict[str, Any]) -> str:
+    """
+    Prompt for LLM call 2.
+    Given all raw kubectl outputs, the LLM produces a plain-text log summary.
+    """
+    logs_text = ""
+    for tool_name, result in logs.items():
+        status = "SUCCESS" if result.get("ok") else "FAILED"
+        output = result.get("output") or result.get("error") or "No output"
+        logs_text += f"\n--- {tool_name} [{status}] ---\n{output}\n"
+
+    return f"""You are an expert SRE. You have fetched live data from a Kubernetes cluster about an active incident.
+Analyze the data below and summarize the diagnostic findings.
+
+## Incident
+- Title: {incident_title}
+- Severity: {severity}
+- Summary: {summary}
+
+## Live Cluster Data
+{logs_text}
+
+## Instructions
+- Write a concise plain-text summary (a short paragraph or two)
+- Identify which pods are affected and form a hypothesis for the most likely root cause
+- Reference the strongest evidence — actual pod names, error messages, statuses, and numbers
+- Do not use markdown headings or bullet lists
+"""
