@@ -31,3 +31,6 @@ builder.add_conditional_edges(
         "P3": "route_p3"
     }
 )
+
+# 4. P1/P2 → fetch logs; P3 (low severity) skips logs and runbooks
+builder.add_edge("route_p1", "fetch_logs")
