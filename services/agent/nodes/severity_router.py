@@ -17,3 +17,9 @@ async def route_p1(state: AgentState) -> Dict[str, Any]:
     return {
         "proposed_action": "P1 CRITICAL: Page on-call engineer immediately. Open war room. All hands."
     }
+
+@traced_step("route_p2")
+async def route_p2(state: AgentState) -> Dict[str, Any]:
+    return {
+        "proposed_action": "P2 Less critical"
+    }
