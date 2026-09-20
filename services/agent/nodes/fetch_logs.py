@@ -2,6 +2,7 @@ from typing import Optional, List
 from enum import Enum
 from pydantic import BaseModel, Field
 
+from services.agent.tools.kubectl import get_pod_logs, get_pod_logs_previous, get_pod_status, describe_pod, get_events, list_pods, get_deployment
 
 
 # ── Structured output models ──────────────────────────────────────────────────
@@ -30,3 +31,39 @@ class KubectlPlan(BaseModel):
     reasoning: str                  = Field(description="Brief reasoning for why these tools were chosen")
     runbooks_needed: bool           = Field(description="True only when curated runbooks likely hold the remediation procedure AND runbooks exist")
     commands: List[KubectlCommand]  = Field(description="List of kubectl commands to execute")
+
+
+# ── Tool dispatcher ───────────────────────────────────────────────────────────
+
+# Maps each KubectlTool enum value to the actual function call.
+# The node uses this to execute whatever the LLM decided to run.
+TOOL_DISPATCHER = {
+    KubectlTool.GET_POD_LOGS: lambda cmd: get_pod_logs(
+        namespace=cmd.namespace,
+        pod_name=cmd.pod_name,
+        tail=cmd.tail or 100,
+    ),
+    KubectlTool.GET_POD_LOGS_PREVIOUS: lambda cmd: get_pod_logs_previous(
+        namespace=cmd.namespace,
+        pod_name=cmd.pod_name,
+        tail=cmd.tail or 100,
+    ),
+    KubectlTool.GET_POD_STATUS: lambda cmd: get_pod_status(
+        namespace=cmd.namespace,
+        pod_name=cmd.pod_name,
+    ),
+    KubectlTool.DESCRIBE_POD: lambda cmd: describe_pod(
+        namespace=cmd.namespace,
+        pod_name=cmd.pod_name,
+    ),
+    KubectlTool.GET_EVENTS: lambda cmd: get_events(
+        namespace=cmd.namespace,
+    ),
+    KubectlTool.LIST_PODS: lambda cmd: list_pods(
+        namespace=cmd.namespace,
+    ),
+    KubectlTool.GET_DEPLOYMENT: lambda cmd: get_deployment(
+        namespace=cmd.namespace,
+        deployment_name=cmd.deployment_name,
+    ),
+}
