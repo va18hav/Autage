@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, List
 from enum import Enum
 from pydantic import BaseModel, Field
 
@@ -23,3 +23,10 @@ class KubectlCommand(BaseModel):
     pod_name: Optional[str]   = Field(default=None, description="Pod name — required for pod-specific tools")
     deployment_name: Optional[str] = Field(default=None, description="Deployment name — required for get_deployment")
     tail: Optional[int]       = Field(default=100, description="Number of log lines to fetch (log tools only)")
+
+
+class KubectlPlan(BaseModel):
+    """LLM's plan: which commands to run, and whether runbooks should be consulted."""
+    reasoning: str                  = Field(description="Brief reasoning for why these tools were chosen")
+    runbooks_needed: bool           = Field(description="True only when curated runbooks likely hold the remediation procedure AND runbooks exist")
+    commands: List[KubectlCommand]  = Field(description="List of kubectl commands to execute")
