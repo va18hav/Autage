@@ -1,4 +1,6 @@
+from typing import Optional
 from enum import Enum
+from pydantic import BaseModel, Field
 
 
 
@@ -12,3 +14,12 @@ class KubectlTool(str, Enum):
     GET_EVENTS            = "get_events"
     LIST_PODS             = "list_pods"
     GET_DEPLOYMENT        = "get_deployment"
+
+
+class KubectlCommand(BaseModel):
+    """A single kubectl command the LLM wants to run."""
+    tool: KubectlTool         = Field(description="The tool/function to call")
+    namespace: str            = Field(description="Kubernetes namespace to target")
+    pod_name: Optional[str]   = Field(default=None, description="Pod name — required for pod-specific tools")
+    deployment_name: Optional[str] = Field(default=None, description="Deployment name — required for get_deployment")
+    tail: Optional[int]       = Field(default=100, description="Number of log lines to fetch (log tools only)")
