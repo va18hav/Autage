@@ -1,0 +1,134 @@
+{
+  "generated_at_utc": "2026-10-19T07:14:03.941643+00:00",
+  "environment": {
+    "python": "3.13",
+    "framework": "FastAPI + ARQ + LangGraph"
+  },
+  "webhook_ingestion_and_deduplication": {
+    "total_requests": 500,
+    "throughput_req_per_sec": 2244.3,
+    "latency_ms": {
+      "mean": 0.44,
+      "p50": 0.48,
+      "p95": 0.6,
+      "p99": 0.67
+    },
+    "alert_storm": {
+      "total_burst_webhooks": 300,
+      "distinct_active_incidents": 5,
+      "jobs_enqueued": 5,
+      "duplicates_suppressed": 295,
+      "expected_duplicates": 295,
+      "dedup_accuracy_pct": 100.0,
+      "downstream_load_reduction_pct": 98.33
+    },
+    "post_resolution_recurrence": {
+      "recurring_webhooks_sent": 50,
+      "new_incidents_created": 50,
+      "recurrence_accuracy_pct": 100.0
+    },
+    "hmac_security": {
+      "tampered_requests_sent": 100,
+      "rejected_401_count": 100,
+      "rejection_accuracy_pct": 100.0
+    },
+    "distinct_alerts": {
+      "distinct_webhooks_sent": 50,
+      "incidents_created": 50,
+      "ingestion_accuracy_pct": 100.0
+    }
+  },
+  "llm_routing_and_fast_path": {
+    "stage_tokens": {
+      "triage": {
+        "input": 238,
+        "output": 110,
+        "llm_calls": 1
+      },
+      "diagnostics": {
+        "input": 1973,
+        "output": 320,
+        "llm_calls": 2
+      },
+      "runbooks": {
+        "input": 1274,
+        "output": 250,
+        "llm_calls": 2
+      },
+      "recommendations": {
+        "input": 293,
+        "output": 240,
+        "llm_calls": 1
+      }
+    },
+    "p1_full_pipeline": {
+      "llm_calls": 6,
+      "input_tokens": 3778,
+      "output_tokens": 920,
+      "total_tokens": 4698
+    },
+    "p3_fast_path": {
+      "llm_calls": 2,
+      "input_tokens": 531,
+      "output_tokens": 350,
+      "total_tokens": 881,
+      "llm_call_reduction_vs_p1_pct": 66.7,
+      "token_reduction_vs_p1_pct": 81.2
+    },
+    "mixed_workload_15p1_25p2_60p3": {
+      "static_pipeline_calls_per_100_incidents": 600,
+      "conditional_graph_calls_per_100_incidents": 360,
+      "overall_llm_call_reduction_pct": 40.0
+    },
+    "hybrid_routing_cost_per_1k_p1_incidents": {
+      "openai_gpt4_1_vs_mini": {
+        "label": "OpenAI (GPT-4.1 Frontier vs. GPT-4o-mini Fast + GPT-4.1 Synthesis)",
+        "all_frontier_cost_per_1k_incidents_usd": 14.92,
+        "hybrid_routed_cost_per_1k_incidents_usd": 3.44,
+        "cost_reduction_pct": 77.0
+      },
+      "anthropic_sonnet4_vs_haiku35": {
+        "label": "Anthropic (Claude Sonnet 4 Frontier vs. Haiku 3.5 Fast + Sonnet 4 Synthesis)",
+        "all_frontier_cost_per_1k_incidents_usd": 25.13,
+        "hybrid_routed_cost_per_1k_incidents_usd": 9.99,
+        "cost_reduction_pct": 60.3
+      },
+      "google_gemini25_pro_vs_flash": {
+        "label": "Google (Gemini 2.5 Pro Frontier vs. 2.5 Flash Fast + 2.5 Pro Synthesis)",
+        "all_frontier_cost_per_1k_incidents_usd": 13.92,
+        "hybrid_routed_cost_per_1k_incidents_usd": 3.7,
+        "cost_reduction_pct": 73.4
+      }
+    }
+  },
+  "runbook_structural_integrity": {
+    "evaluated_runbooks": 6,
+    "evaluated_command_blocks": 12,
+    "structural_heading_chunker": {
+      "intact_command_blocks": 12,
+      "command_integrity_pct": 100.0,
+      "cross_service_command_bleed_pct": 0.0
+    },
+    "fixed_window_chunker_baseline": {
+      "intact_command_blocks": 0,
+      "command_integrity_pct": 0.0
+    }
+  },
+  "recorded_pipeline_telemetry": {
+    "sampled_incident_ids": [
+      "c206e85e-8654-43cb-b118-c95b50730dec",
+      "a40af7bb-dabd-40dc-8e9b-9c3effab5ce5",
+      "f0d34229-8551-4519-961c-584db78894b4"
+    ],
+    "webhook_to_worker_pickup_ms_mean": 417.8,
+    "stage_durations_sec_mean": {
+      "triage": 10.38,
+      "severity_router": 0.013,
+      "fetch_logs": 16.3,
+      "refer_runbooks": 22.41,
+      "recommended_steps_estimated": 8.4
+    },
+    "e2e_p1_without_runbooks_sec": 35.6,
+    "e2e_p1_full_6_call_pipeline_sec_mean": 57.5
+  }
+}
