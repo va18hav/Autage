@@ -1,8 +1,28 @@
-from typing import Optional, List
+import asyncio
+from typing import Dict, Any, Optional, List
 from enum import Enum
 from pydantic import BaseModel, Field
+from services.agent.llm import StepKey, get_llm
+from services.agent.nodes.trace_step import traced_step
+from sqlalchemy import func, select
 
-from services.agent.tools.kubectl import get_pod_logs, get_pod_logs_previous, get_pod_status, describe_pod, get_events, list_pods, get_deployment
+from services.agent.llm_text import ai_text
+from services.agent.state import AgentState
+from services.agent.prompts.fetch_logs import build_plan_prompt, build_summary_prompt
+from services.agent.tools.kubectl import (
+    get_pod_logs,
+    get_pod_logs_previous,
+    get_pod_status,
+    describe_pod,
+    get_events,
+    list_pods,
+    get_deployment,
+    reset_cluster_credentials,
+    set_cluster_credentials,
+)
+from services.db.database import async_session_factory
+from services.db.models.runbooks import Runbook
+from services.secrets.store import SecretStore
 
 
 # ── Structured output models ──────────────────────────────────────────────────
@@ -67,3 +87,89 @@ TOOL_DISPATCHER = {
         deployment_name=cmd.deployment_name,
     ),
 }
+
+
+# ── Node ──────────────────────────────────────────────────────────────────────
+
+@traced_step("fetch_logs")
+async def fetch_logs(state: AgentState) -> Dict[str, Any]:
+    """
+    Fetch logs node (renamed from context gathering).
+
+    Check whether runbooks exist in the DB so runbooks_needed is only ever
+    meaningful when there is something to consult.
+    Step 1 — LLM reads the raw_alert and decides which kubectl commands to run.
+    Step 2 — Node executes those commands using the tool dispatcher.
+    Step 3 — LLM reads all outputs and produces a plain-text summary.
+    """
+    llm = get_llm(StepKey.DIAGNOSTICS)
+
+    # Runbook presence check — a cheap count, done here so both the worker and
+    # standalone main.py runs get the same behavior.
+    async with async_session_factory() as db:
+        runbook_count = (
+            await db.execute(select(func.count()).select_from(Runbook))
+        ).scalar_one()
+    runbooks_available = runbook_count > 0
+
+    # ── Step 1: Ask LLM which commands to run + whether runbooks are needed ──
+    plan_prompt = build_plan_prompt(
+        raw_alert=state["raw_alert"],
+        incident_title=state["incident_title"],
+        severity=state["severity"],
+        summary=state["summary"],
+        runbooks_available=runbooks_available,
+    )
+
+    plan_llm = llm.with_structured_output(KubectlPlan)
+    plan: KubectlPlan = await plan_llm.ainvoke(plan_prompt)
+
+    runbooks_needed = bool(runbooks_available and plan.runbooks_needed)
+
+    # ── Step 2: Execute planned kubectl commands concurrently ────────────
+    logs: Dict[str, Any] = {}
+    errors: List[str] = []
+
+    k8s_creds = await SecretStore.fetch_payload("kubernetes")
+    creds_token = set_cluster_credentials(k8s_creds)
+    try:
+        valid_tasks = []
+        task_keys: List[str] = []
+
+        for cmd in plan.commands:
+            key_suffix = cmd.pod_name or cmd.deployment_name or cmd.namespace
+            result_key = f"{cmd.tool.value}:{key_suffix}"
+
+            executor = TOOL_DISPATCHER.get(cmd.tool)
+            if executor is None:
+                errors.append(f"Unknown tool requested by LLM: {cmd.tool}")
+                continue
+
+            task_keys.append(result_key)
+            valid_tasks.append(asyncio.to_thread(executor, cmd))
+
+        if valid_tasks:
+            results = await asyncio.gather(*valid_tasks)
+            for result_key, result in zip(task_keys, results):
+                logs[result_key] = result
+                if not result["ok"]:
+                    errors.append(f"{result_key} failed: {result['error']}")
+    finally:
+        reset_cluster_credentials(creds_token)
+
+    # ── Step 3: Ask LLM to summarize all outputs (plain text — keep it simple) ──
+    summary_prompt = build_summary_prompt(
+        incident_title=state["incident_title"],
+        severity=state["severity"],
+        summary=state["summary"],
+        logs=logs,
+    )
+
+    logs_summary: str = ai_text(await llm.ainvoke(summary_prompt))
+
+    return {
+        "logs": logs,
+        "logs_summary": logs_summary,
+        "runbooks_available": runbooks_available,
+        "runbooks_needed": runbooks_needed,
+    }
