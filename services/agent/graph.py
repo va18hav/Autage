@@ -1,7 +1,7 @@
 from langgraph.graph import StateGraph, START
 from services.agent.state import AgentState
 from services.agent.nodes.triage import process_alert
-from services.agent.nodes.severity_router import route_p1, route_p2, route_p3
+from services.agent.nodes.severity_router import severity_router, route_p1, route_p2, route_p3
 from services.agent.nodes.fetch_logs import fetch_logs
 from services.agent.nodes.refer_runbooks import refer_runbooks
 from services.agent.nodes.recommended_steps import recommended_steps
@@ -20,3 +20,14 @@ builder.add_node("recommended_steps", recommended_steps)
 
 # 2. Entry point
 builder.add_edge(START, "process_alert")
+
+# 3. Triage → severity router
+builder.add_conditional_edges(
+    "process_alert",
+    severity_router,
+    {
+        "P1": "route_p1",
+        "P2": "route_p2",
+        "P3": "route_p3"
+    }
+)
