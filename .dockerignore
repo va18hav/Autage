@@ -1,0 +1,11 @@
+.git
+.gitignore
+.venv
+.pytest_cache
+__pycache__
+*.py[oc]
+.env
+.DS_Store
+brag-output
+services/dashboard/node_modules
+services/dashboard/dist
