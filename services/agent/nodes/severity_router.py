@@ -23,3 +23,9 @@ async def route_p2(state: AgentState) -> Dict[str, Any]:
     return {
         "proposed_action": "P2 Less critical"
     }
+
+@traced_step("route_p3")
+async def route_p3(state: AgentState) -> Dict[str, Any]:
+    return {
+        "proposed_action": "P3: Create a ticket"
+    }
