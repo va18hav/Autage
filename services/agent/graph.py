@@ -36,3 +36,10 @@ builder.add_conditional_edges(
 builder.add_edge("route_p1", "fetch_logs")
 builder.add_edge("route_p2", "fetch_logs")
 builder.add_edge("route_p3", "recommended_steps")
+
+
+# 5. fetch_logs → refer_runbooks only when the agent flagged it, else straight to recommendations
+def runbooks_router(state: AgentState) -> str:
+    if state.get("runbooks_needed"):
+        return "refer_runbooks"
+    return "recommended_steps"
