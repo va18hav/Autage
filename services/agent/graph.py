@@ -1,4 +1,4 @@
-from langgraph.graph import StateGraph, START
+from langgraph.graph import StateGraph, START, END
 from services.agent.state import AgentState
 from services.agent.nodes.triage import process_alert
 from services.agent.nodes.severity_router import severity_router, route_p1, route_p2, route_p3
@@ -56,3 +56,4 @@ builder.add_conditional_edges(
 
 # 6. Both branches converge on the final recommendations
 builder.add_edge("refer_runbooks", "recommended_steps")
+builder.add_edge("recommended_steps", END)
