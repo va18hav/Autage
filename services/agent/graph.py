@@ -53,3 +53,6 @@ builder.add_conditional_edges(
         "recommended_steps": "recommended_steps"
     }
 )
+
+# 6. Both branches converge on the final recommendations
+builder.add_edge("refer_runbooks", "recommended_steps")
