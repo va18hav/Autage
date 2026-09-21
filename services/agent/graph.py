@@ -43,3 +43,13 @@ def runbooks_router(state: AgentState) -> str:
     if state.get("runbooks_needed"):
         return "refer_runbooks"
     return "recommended_steps"
+
+
+builder.add_conditional_edges(
+    "fetch_logs",
+    runbooks_router,
+    {
+        "refer_runbooks": "refer_runbooks",
+        "recommended_steps": "recommended_steps"
+    }
+)
