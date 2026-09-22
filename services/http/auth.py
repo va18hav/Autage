@@ -3,6 +3,7 @@ from uuid import UUID
 
 import bcrypt
 import jwt
+from fastapi import Response
 
 from services.config import settings
 
@@ -51,3 +52,15 @@ def decode_access_token(token: str) -> dict | None:
         return jwt.decode(token, _jwt_secret(), algorithms=[JWT_ALGORITHM])
     except jwt.PyJWTError:
         return None
+
+
+def set_auth_cookie(response: Response, token: str) -> None:
+    response.set_cookie(
+        key=COOKIE_NAME,
+        value=token,
+        httponly=True,
+        samesite="lax",
+        secure=settings.COOKIE_SECURE,
+        max_age=settings.JWT_EXPIRE_MINUTES * 60,
+        path="/",
+    )
