@@ -1,11 +1,14 @@
 import json
 from uuid import uuid4
+
 import pytest
+
 import services.worker.main as worker_mod
-from services.agent.llm import LlmResolver
+from services.agent.llm import LlmConfigError, LlmResolver
 from services.db.models.incident import Incident, IncidentStatus
-from services.worker.main import run_agent_task
+from services.worker.main import WorkerSettings, run_agent_task
 from tests.conftest import InMemoryAsyncSession
+
 
 class _FakeRedisPublisher:
     def __init__(self):
@@ -65,3 +68,44 @@ async def test_worker_run_agent_task_completes_and_publishes_events(monkeypatch)
 
     event_types = [msg["type"] for _, msg in redis_pub.published]
     assert event_types == ["status", "step_complete", "step_complete", "incident_complete"]
+
+
+@pytest.mark.anyio
+async def test_worker_handles_missing_incident_and_config_errors(monkeypatch):
+    session = InMemoryAsyncSession()
+    monkeypatch.setattr(worker_mod, "async_session_factory", session.factory)
+
+    redis_pub = _FakeRedisPublisher()
+    ctx = {"redis": redis_pub}
+
+    # 1. Missing incident returns early without publishing
+    await run_agent_task(ctx, str(uuid4()))
+    assert redis_pub.published == []
+
+    # 2. LlmConfigError marks incident FAILED and publishes incident_failed
+    inc = Incident(
+        id=uuid4(),
+        title="Pending triage",
+        status=IncidentStatus.PENDING,
+        raw_alert={"source": "prometheus"},
+    )
+    session.add(inc)
+
+    async def _fake_load():
+        return LlmResolver(steps={}, credentials={})
+
+    monkeypatch.setattr(LlmResolver, "load", _fake_load)
+    monkeypatch.setattr(
+        worker_mod,
+        "agent_graph",
+        _FakeGraph(exc=LlmConfigError("Missing OpenAI API key in Integrations.")),
+    )
+
+    with pytest.raises(LlmConfigError):
+        await run_agent_task(ctx, str(inc.id))
+
+    assert inc.status == IncidentStatus.FAILED
+    assert redis_pub.published[-1][1]["type"] == "incident_failed"
+    assert "Missing OpenAI API key" in redis_pub.published[-1][1]["error"]
+    assert WorkerSettings.max_jobs == 10
+    assert run_agent_task in WorkerSettings.functions
