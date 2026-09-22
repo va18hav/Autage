@@ -1,4 +1,5 @@
 
+import bcrypt
 
 from services.config import settings
 
@@ -13,3 +14,8 @@ def _jwt_secret() -> str:
         or settings.WEBHOOK_SECRET
     )
     return secret
+
+
+def hash_password(password: str) -> str:
+    salt = bcrypt.gensalt()
+    return bcrypt.hashpw(password.encode("utf-8"), salt).decode("utf-8")
