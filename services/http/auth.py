@@ -44,3 +44,10 @@ def create_access_token(user_id: UUID, username: str) -> str:
         "exp": int(expires.timestamp()),
     }
     return jwt.encode(payload, _jwt_secret(), algorithm=JWT_ALGORITHM)
+
+
+def decode_access_token(token: str) -> dict | None:
+    try:
+        return jwt.decode(token, _jwt_secret(), algorithms=[JWT_ALGORITHM])
+    except jwt.PyJWTError:
+        return None
