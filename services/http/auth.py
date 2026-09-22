@@ -1,5 +1,8 @@
+from datetime import datetime, timedelta, timezone
+from uuid import UUID
 
 import bcrypt
+import jwt
 
 from services.config import settings
 
@@ -29,3 +32,15 @@ def verify_password(password: str, password_hash: str) -> bool:
         )
     except ValueError:
         return False
+
+
+def create_access_token(user_id: UUID, username: str) -> str:
+    now = datetime.now(timezone.utc)
+    expires = now + timedelta(minutes=settings.JWT_EXPIRE_MINUTES)
+    payload = {
+        "sub": str(user_id),
+        "username": username,
+        "iat": int(now.timestamp()),
+        "exp": int(expires.timestamp()),
+    }
+    return jwt.encode(payload, _jwt_secret(), algorithm=JWT_ALGORITHM)
