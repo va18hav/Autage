@@ -1,3 +1,4 @@
+import asyncio
 import json
 import os
 
@@ -22,3 +23,6 @@ async def main():
     result = await graph.ainvoke(MOCK_INCIDENT)
     print("\n--- Final Graph State ---")
     print(json.dumps(result, indent=2, default=str))
+
+if __name__ == "__main__":
+    asyncio.run(main())
