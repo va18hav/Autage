@@ -120,3 +120,22 @@ async def run_agent_task(ctx, incident_id: str):
     finally:
         if resolver_token is not None:
             reset_resolver(resolver_token)
+
+
+async def _fail_incident(ctx, channel: str, incident_id: str, error: str) -> None:
+    async with async_session_factory() as db:
+        await db.execute(
+            update(Incident)
+            .where(Incident.id == incident_id)
+            .values(status=IncidentStatus.FAILED)
+        )
+        await db.commit()
+
+    await ctx["redis"].publish(
+        channel,
+        json.dumps({
+            "type": "incident_failed",
+            "status": "FAILED",
+            "error": error
+        })
+    )
