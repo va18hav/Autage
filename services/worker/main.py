@@ -1,8 +1,15 @@
 import os
 import json
+from arq.connections import RedisSettings
 from sqlalchemy import update
 
-from services.agent.llm import LlmConfigError, LlmResolver, reset_resolver, set_resolver
+from services.agent.state import AgentState
+from services.agent.llm import (
+    LlmConfigError,
+    LlmResolver,
+    reset_resolver,
+    set_resolver,
+)
 from services.agent.llm.resolver import friendly_error
 from services.config import settings
 
@@ -139,3 +146,10 @@ async def _fail_incident(ctx, channel: str, incident_id: str, error: str) -> Non
             "error": error
         })
     )
+
+
+
+class WorkerSettings:
+    functions = [run_agent_task]
+    redis_settings = RedisSettings.from_dsn(settings.REDIS_URL)
+    max_jobs = 10
