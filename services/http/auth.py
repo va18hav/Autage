@@ -64,3 +64,13 @@ def set_auth_cookie(response: Response, token: str) -> None:
         max_age=settings.JWT_EXPIRE_MINUTES * 60,
         path="/",
     )
+
+
+def clear_auth_cookie(response: Response) -> None:
+    response.delete_cookie(
+        key=COOKIE_NAME,
+        httponly=True,
+        samesite="lax",
+        secure=settings.COOKIE_SECURE,
+        path="/",
+    )
