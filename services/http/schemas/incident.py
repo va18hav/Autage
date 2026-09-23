@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any, List, Optional
 from uuid import UUID
 from pydantic import BaseModel, ConfigDict
 
@@ -25,5 +25,19 @@ class IncidentListItemResponse(BaseModel):
     title: str
     status: IncidentStatus
     fingerprint: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+
+class IncidentDetailResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    title: str
+    status: IncidentStatus
+    fingerprint: Optional[str] = None
+    raw_alert: dict[str, Any]
+    # historical shapes: dict (seed), str (legacy proposed_action), list[str] (current recommended_steps node)
+    recommended_steps: Optional[dict[str, Any] | str | list[str]] = None
+    steps: List[IncidentStepResponse] = []
     created_at: datetime
     updated_at: datetime
