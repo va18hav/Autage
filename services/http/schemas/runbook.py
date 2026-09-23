@@ -1,0 +1,3 @@
+
+
+MAX_HEADING_LENGTH = 255
