@@ -3,10 +3,11 @@ from uuid import UUID
 
 import bcrypt
 import jwt
-from fastapi import Request, Response
+from fastapi import Depends, HTTPException, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from services.config import settings
+from services.db.database import get_db_session
 from services.db.models.user import User
 
 COOKIE_NAME = "autage_token"
@@ -96,3 +97,16 @@ async def resolve_optional_user(
         return None
 
     return await db.get(User, user_id)
+
+
+async def get_current_user(
+    request: Request,
+    db: AsyncSession = Depends(get_db_session),
+) -> User:
+    user = await resolve_optional_user(request, db)
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required",
+        )
+    return user
