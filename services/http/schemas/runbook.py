@@ -16,3 +16,8 @@ class RunbookSectionIn(BaseModel):
         if not value:
             raise ValueError("Section heading must not be empty")
         return value
+
+    @field_validator("content")
+    @classmethod
+    def strip_content(cls, value: str) -> str:
+        return value.strip()
