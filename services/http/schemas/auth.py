@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Optional
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -22,3 +23,9 @@ class UserOut(BaseModel):
     username: str
     name: str
     created_at: datetime
+
+
+class AuthStatusResponse(BaseModel):
+    initialized: bool
+    authenticated: bool
+    user: Optional[UserOut] = None
