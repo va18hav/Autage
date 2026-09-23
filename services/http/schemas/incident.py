@@ -3,7 +3,7 @@ from typing import Any, Optional
 from uuid import UUID
 from pydantic import BaseModel, ConfigDict
 
-from services.db.models.incident import StepStatus
+from services.db.models.incident import IncidentStatus, StepStatus
 
 class IncidentStepResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -15,5 +15,15 @@ class IncidentStepResponse(BaseModel):
     input_data: Optional[dict[str, Any]] = None
     output_data: Optional[dict[str, Any]] = None
     error_message: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+
+class IncidentListItemResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    title: str
+    status: IncidentStatus
+    fingerprint: Optional[str] = None
     created_at: datetime
     updated_at: datetime
