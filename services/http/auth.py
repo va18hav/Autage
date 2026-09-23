@@ -3,9 +3,11 @@ from uuid import UUID
 
 import bcrypt
 import jwt
-from fastapi import Response
+from fastapi import Request, Response
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from services.config import settings
+from services.db.models.user import User
 
 COOKIE_NAME = "autage_token"
 JWT_ALGORITHM = "HS256"
@@ -74,3 +76,23 @@ def clear_auth_cookie(response: Response) -> None:
         secure=settings.COOKIE_SECURE,
         path="/",
     )
+
+
+async def resolve_optional_user(
+    request: Request,
+    db: AsyncSession,
+) -> User | None:
+    token = request.cookies.get(COOKIE_NAME)
+    if not token:
+        return None
+
+    payload = decode_access_token(token)
+    if not payload or "sub" not in payload:
+        return None
+
+    try:
+        user_id = UUID(str(payload["sub"]))
+    except ValueError:
+        return None
+
+    return await db.get(User, user_id)
