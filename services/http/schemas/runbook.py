@@ -46,3 +46,11 @@ class RunbookCreate(BaseModel):
         if value is not None and not value.strip():
             return None
         return value
+
+    @field_validator("triggers")
+    @classmethod
+    def drop_empty_triggers(cls, value: Optional[List[str]]) -> Optional[List[str]]:
+        if value is None:
+            return None
+        cleaned = [t.strip() for t in value if t and t.strip()]
+        return cleaned or None
