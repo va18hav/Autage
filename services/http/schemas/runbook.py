@@ -1,6 +1,8 @@
+from datetime import datetime
 from typing import List, Optional
+from uuid import UUID
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 MAX_HEADING_LENGTH = 255
 
@@ -54,3 +56,15 @@ class RunbookCreate(BaseModel):
             return None
         cleaned = [t.strip() for t in value if t and t.strip()]
         return cleaned or None
+
+
+class RunbookSectionResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    runbook_id: UUID
+    order_index: int
+    heading: str
+    content: str
+    created_at: datetime
+    updated_at: datetime
