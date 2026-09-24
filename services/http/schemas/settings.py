@@ -33,3 +33,8 @@ class ProviderOut(BaseModel):
 class CatalogResponse(BaseModel):
     providers: List[ProviderOut]
     steps: List["StepKeyOut"]
+
+
+class StepKeyOut(BaseModel):
+    key: str
+    label: str
