@@ -11,3 +11,9 @@ class CredentialFieldOut(BaseModel):
     is_secret: bool
     required: bool
     default: Optional[str] = None
+
+
+class ModelOut(BaseModel):
+    id: str
+    label: str
+    tier: str
