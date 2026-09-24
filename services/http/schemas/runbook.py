@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import List, Optional
+from typing import Any, List, Optional
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -77,5 +77,19 @@ class RunbookListItemResponse(BaseModel):
     title: str
     description: Optional[str] = None
     service: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class RunbookDetailResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    title: str
+    description: Optional[str] = None
+    service: Optional[str] = None
+    triggers: Optional[List[str]] = None
+    raw_content: str
+    sections: List[RunbookSectionResponse] = []
     created_at: datetime
     updated_at: datetime
