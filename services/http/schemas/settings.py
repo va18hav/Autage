@@ -1,6 +1,6 @@
 from typing import List, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 # ── Provider catalog ──────────────────────────────────────────────────────────
@@ -38,3 +38,13 @@ class CatalogResponse(BaseModel):
 class StepKeyOut(BaseModel):
     key: str
     label: str
+
+
+# ── Step configs ──────────────────────────────────────────────────────────────
+
+class StepConfigIn(BaseModel):
+    step_key: str = Field(min_length=1)
+    provider_id: str = Field(min_length=1)
+    model_id: str = Field(min_length=1)
+    temperature: Optional[float] = Field(default=None, ge=0, le=2)
+    max_output_tokens: Optional[int] = Field(default=None, ge=1)
