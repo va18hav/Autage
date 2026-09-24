@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import List, Optional
 
 from pydantic import BaseModel
 
@@ -17,3 +17,14 @@ class ModelOut(BaseModel):
     id: str
     label: str
     tier: str
+
+
+class ProviderOut(BaseModel):
+    id: str
+    display_name: str
+    models: List[ModelOut]
+    credential_fields: List[CredentialFieldOut]
+    # Whether a usable credential currently exists for this provider
+    credential_configured: bool = False
+    # True when the stored key came from the plaintext DB row
+    credential_preview: Optional[str] = None
