@@ -28,3 +28,8 @@ class ProviderOut(BaseModel):
     credential_configured: bool = False
     # True when the stored key came from the plaintext DB row
     credential_preview: Optional[str] = None
+
+
+class CatalogResponse(BaseModel):
+    providers: List[ProviderOut]
+    steps: List["StepKeyOut"]
