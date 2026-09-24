@@ -48,3 +48,15 @@ class StepConfigIn(BaseModel):
     model_id: str = Field(min_length=1)
     temperature: Optional[float] = Field(default=None, ge=0, le=2)
     max_output_tokens: Optional[int] = Field(default=None, ge=1)
+
+
+class StepConfigOut(BaseModel):
+    step_key: str
+    provider_id: str
+    model_id: str
+    temperature: Optional[float] = None
+    max_output_tokens: Optional[int] = None
+    # True when no DB row exists and the built-in default is in effect
+    is_default: bool
+    # Populated only when this exact provider/model pair has a usable credential
+    credential_configured: bool = False
