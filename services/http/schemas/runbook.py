@@ -39,3 +39,10 @@ class RunbookCreate(BaseModel):
         if not value:
             raise ValueError("Runbook title must not be empty")
         return value
+
+    @field_validator("service")
+    @classmethod
+    def blank_service_to_none(cls, value: Optional[str]) -> Optional[str]:
+        if value is not None and not value.strip():
+            return None
+        return value
