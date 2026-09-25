@@ -60,3 +60,7 @@ class StepConfigOut(BaseModel):
     is_default: bool
     # Populated only when this exact provider/model pair has a usable credential
     credential_configured: bool = False
+
+
+class StepConfigsResponse(BaseModel):
+    steps: List[StepConfigOut]
