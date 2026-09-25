@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -64,3 +64,12 @@ class StepConfigOut(BaseModel):
 
 class StepConfigsResponse(BaseModel):
     steps: List[StepConfigOut]
+
+
+# ── Credential management ─────────────────────────────────────────────────────
+
+class CredentialPayloadIn(BaseModel):
+    """Raw credential fields (api_key, base_url, ...) — key names must match
+    the provider's `credential_fields` from the catalog."""
+
+    fields: Dict[str, str] = Field(default_factory=dict)
