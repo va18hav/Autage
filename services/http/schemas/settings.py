@@ -90,3 +90,10 @@ class TestCredentialResponse(BaseModel):
     provider: Optional[str] = None
     model: Optional[str] = None
     message: str
+
+
+class WebhookSecretOut(BaseModel):
+    configured: bool
+    secret: Optional[str] = None
+    preview: Optional[str] = None
+    updated_at: Optional[datetime] = None
