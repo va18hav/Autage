@@ -83,3 +83,10 @@ class CredentialOut(BaseModel):
     preview: Optional[str] = None
     created_at: datetime
     updated_at: datetime
+
+
+class TestCredentialResponse(BaseModel):
+    ok: bool
+    provider: Optional[str] = None
+    model: Optional[str] = None
+    message: str
