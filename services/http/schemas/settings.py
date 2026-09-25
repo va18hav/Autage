@@ -1,6 +1,7 @@
+from datetime import datetime
 from typing import Dict, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 # ── Provider catalog ──────────────────────────────────────────────────────────
@@ -73,3 +74,12 @@ class CredentialPayloadIn(BaseModel):
     the provider's `credential_fields` from the catalog."""
 
     fields: Dict[str, str] = Field(default_factory=dict)
+
+
+class CredentialOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    purpose: str
+    preview: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
