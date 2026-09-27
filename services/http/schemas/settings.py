@@ -97,3 +97,8 @@ class WebhookSecretOut(BaseModel):
     secret: Optional[str] = None
     preview: Optional[str] = None
     updated_at: Optional[datetime] = None
+
+
+class KubernetesConfigIn(BaseModel):
+    server_url: str = Field(..., min_length=8, max_length=512)
+    token: str = Field(..., min_length=10, max_length=8192)
