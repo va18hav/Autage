@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from services.db.database import get_db_session
 from services.db.models.user import User
-from services.http.auth import create_access_token, hash_password, resolve_optional_user, set_auth_cookie, verify_password
+from services.http.auth import clear_auth_cookie, create_access_token, hash_password, resolve_optional_user, set_auth_cookie, verify_password
 from services.http.schemas.auth import AuthStatusResponse, LoginRequest, RegisterRequest, UserOut
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
@@ -103,3 +103,12 @@ async def login(
     token = create_access_token(user.id, user.username)
     set_auth_cookie(response, token)
     return user
+
+
+@router.post(
+    "/logout",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Clear the HttpOnly JWT session cookie",
+)
+async def logout(response: Response):
+    clear_auth_cookie(response)
