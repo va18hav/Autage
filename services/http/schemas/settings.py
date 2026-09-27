@@ -102,3 +102,10 @@ class WebhookSecretOut(BaseModel):
 class KubernetesConfigIn(BaseModel):
     server_url: str = Field(..., min_length=8, max_length=512)
     token: str = Field(..., min_length=10, max_length=8192)
+
+
+class KubernetesConfigOut(BaseModel):
+    configured: bool
+    server_url: Optional[str] = None
+    token_preview: Optional[str] = None
+    updated_at: Optional[datetime] = None
