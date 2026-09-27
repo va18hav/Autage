@@ -1,11 +1,11 @@
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from services.db.database import get_db_session
 from services.db.models.user import User
-from services.http.auth import resolve_optional_user
-from services.http.schemas.auth import AuthStatusResponse
+from services.http.auth import create_access_token, hash_password, resolve_optional_user, set_auth_cookie
+from services.http.schemas.auth import AuthStatusResponse, RegisterRequest, UserOut
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
@@ -35,3 +35,45 @@ async def auth_status(
         authenticated=user is not None,
         user=user,
     )
+
+
+@router.post(
+    "/register",
+    response_model=UserOut,
+    status_code=status.HTTP_201_CREATED,
+    summary="Initial setup: register the single admin user if no user exists yet",
+)
+async def register(
+    payload: RegisterRequest,
+    response: Response,
+    db: AsyncSession = Depends(get_db_session),
+):
+    existing_count = (
+        await db.execute(select(func.count()).select_from(User))
+    ).scalar_one()
+    if existing_count > 0:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Instance already initialized. Only one user account is permitted.",
+        )
+
+    username = payload.username.strip().lower()
+    name = payload.name.strip()
+    if not username or not name:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Name and username cannot be blank.",
+        )
+
+    user = User(
+        username=username,
+        name=name,
+        password_hash=hash_password(payload.password),
+    )
+    db.add(user)
+    await db.commit()
+    await db.refresh(user)
+
+    token = create_access_token(user.id, user.username)
+    set_auth_cookie(response, token)
+    return user
