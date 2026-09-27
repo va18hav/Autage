@@ -4,8 +4,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from services.db.database import get_db_session
 from services.db.models.user import User
-from services.http.auth import create_access_token, hash_password, resolve_optional_user, set_auth_cookie
-from services.http.schemas.auth import AuthStatusResponse, RegisterRequest, UserOut
+from services.http.auth import create_access_token, hash_password, resolve_optional_user, set_auth_cookie, verify_password
+from services.http.schemas.auth import AuthStatusResponse, LoginRequest, RegisterRequest, UserOut
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
@@ -73,6 +73,32 @@ async def register(
     db.add(user)
     await db.commit()
     await db.refresh(user)
+
+    token = create_access_token(user.id, user.username)
+    set_auth_cookie(response, token)
+    return user
+
+
+@router.post(
+    "/login",
+    response_model=UserOut,
+    summary="Authenticate with username and password and set HttpOnly JWT cookie",
+)
+async def login(
+    payload: LoginRequest,
+    response: Response,
+    db: AsyncSession = Depends(get_db_session),
+):
+    username = payload.username.strip().lower()
+    user = (
+        await db.execute(select(User).where(User.username == username))
+    ).scalar_one_or_none()
+
+    if user is None or not verify_password(payload.password, user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid username or password.",
+        )
 
     token = create_access_token(user.id, user.username)
     set_auth_cookie(response, token)
