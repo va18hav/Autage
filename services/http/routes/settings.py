@@ -1,6 +1,8 @@
 
 from fastapi import APIRouter
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from services.db.models.credentials import Credential
 
 router = APIRouter(prefix="/settings", tags=["Settings"])
 
@@ -13,3 +15,9 @@ _ENV_CREDENTIAL_FALLBACK = {
     "anthropic": "ANTHROPIC_API_KEY",
     "openrouter": "OPENROUTER_API_KEY",
 }
+
+
+async def _provider_configured(db: AsyncSession, provider_id: str) -> bool:
+    """A provider is configured when a credential row exists in the DB."""
+    row = await db.get(Credential, provider_id)
+    return bool(row)
