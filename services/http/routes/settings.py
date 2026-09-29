@@ -143,3 +143,16 @@ async def put_llm_settings(
 
     await db.commit()
     return await get_llm_settings(db)
+
+
+@router.delete(
+    "/llm/{step_key}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Reset a step to its built-in default",
+)
+async def reset_step_config(step_key: str, db: AsyncSession = Depends(get_db_session)):
+    _ensure_step_key(step_key)
+    row = await db.get(LlmStepConfig, step_key)
+    if row:
+        await db.delete(row)
+        await db.commit()
