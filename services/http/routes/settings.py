@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from services.agent.llm import registry, StepKey
+from services.agent.llm.registry import UnknownProviderError, get_provider
 from services.agent.llm.resolver import DEFAULT_STEP_MODELS, STEP_LABELS
 from services.db.database import get_db_session
 from services.db.models.credentials import Credential, LlmStepConfig
@@ -179,3 +180,18 @@ def _build_preview(spec, fields: dict[str, str]) -> str:
             return f"{value[:3]}…{value[-4:]}"
         return "••••"
     return "••••"
+
+
+def _validate_selection(provider_id: str, model_id: str) -> None:
+    try:
+        spec = get_provider(provider_id)
+    except UnknownProviderError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Unknown provider '{provider_id}'",
+        )
+    if model_id not in {m.id for m in spec.models}:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Model '{model_id}' is not registered for provider '{provider_id}'",
+        )
