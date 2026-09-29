@@ -156,3 +156,11 @@ async def reset_step_config(step_key: str, db: AsyncSession = Depends(get_db_ses
     if row:
         await db.delete(row)
         await db.commit()
+
+
+def _ensure_step_key(step_key: str) -> None:
+    if step_key not in [s.value for s in StepKey]:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Unknown step key '{step_key}'. Valid: {[s.value for s in StepKey]}",
+        )
