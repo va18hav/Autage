@@ -1,6 +1,6 @@
-from typing import Optional
+from typing import List, Optional
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -8,7 +8,7 @@ from services.agent.llm import registry, StepKey
 from services.agent.llm.resolver import DEFAULT_STEP_MODELS, STEP_LABELS
 from services.db.database import get_db_session
 from services.db.models.credentials import Credential, LlmStepConfig
-from services.http.schemas.settings import CatalogResponse, ProviderOut, StepConfigOut, StepConfigsResponse, StepKeyOut
+from services.http.schemas.settings import CatalogResponse, ProviderOut, StepConfigIn, StepConfigOut, StepConfigsResponse, StepKeyOut
 
 router = APIRouter(prefix="/settings", tags=["Settings"])
 
@@ -103,3 +103,43 @@ async def get_llm_settings(db: AsyncSession = Depends(get_db_session)):
             )
 
     return StepConfigsResponse(steps=steps)
+
+
+@router.put(
+    "/llm",
+    response_model=StepConfigsResponse,
+    summary="Upsert per-step LLM selection",
+)
+async def put_llm_settings(
+    payload: List[StepConfigIn],
+    db: AsyncSession = Depends(get_db_session),
+):
+    if not payload:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Payload must contain at least one step configuration",
+        )
+
+    seen: set[str] = set()
+    for item in payload:
+        if item.step_key in seen:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Duplicate step in payload: {item.step_key}",
+            )
+        seen.add(item.step_key)
+        _ensure_step_key(item.step_key)
+        _validate_selection(item.provider_id, item.model_id)
+
+    for item in payload:
+        row = await db.get(LlmStepConfig, item.step_key)
+        if row is None:
+            row = LlmStepConfig(step_key=item.step_key)
+            db.add(row)
+        row.provider_id = item.provider_id
+        row.model_id = item.model_id
+        row.temperature = item.temperature
+        row.max_output_tokens = item.max_output_tokens
+
+    await db.commit()
+    return await get_llm_settings(db)
