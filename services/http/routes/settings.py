@@ -1,3 +1,4 @@
+from typing import Optional
 
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -51,3 +52,8 @@ async def get_provider_catalog(db: AsyncSession = Depends(get_db_session)):
 
     steps = [StepKeyOut(key=key, label=STEP_LABELS[key]) for key in StepKey]
     return CatalogResponse(providers=providers, steps=steps)
+
+
+async def _credential_preview(db: AsyncSession, purpose: str) -> Optional[str]:
+    credential = await db.get(Credential, purpose)
+    return credential.preview if credential else None
