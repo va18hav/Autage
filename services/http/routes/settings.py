@@ -164,3 +164,18 @@ def _ensure_step_key(step_key: str) -> None:
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Unknown step key '{step_key}'. Valid: {[s.value for s in StepKey]}",
         )
+
+
+def _build_preview(spec, fields: dict[str, str]) -> str:
+    """Masked fingerprint for the UI: secret fields show first 3 + last 4,
+    non-secret fields (e.g. a base URL) are shown as-is."""
+    for field in spec.credential_fields:
+        value = fields.get(field.name)
+        if not value:
+            continue
+        if not field.is_secret:
+            return value
+        if len(value) > 10:
+            return f"{value[:3]}…{value[-4:]}"
+        return "••••"
+    return "••••"
