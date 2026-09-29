@@ -2,12 +2,13 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 
 from services.agent.llm import registry, StepKey
-from services.agent.llm.resolver import STEP_LABELS
+from services.agent.llm.resolver import DEFAULT_STEP_MODELS, STEP_LABELS
 from services.db.database import get_db_session
-from services.db.models.credentials import Credential
-from services.http.schemas.settings import CatalogResponse, ProviderOut, StepKeyOut
+from services.db.models.credentials import Credential, LlmStepConfig
+from services.http.schemas.settings import CatalogResponse, ProviderOut, StepConfigOut, StepConfigsResponse, StepKeyOut
 
 router = APIRouter(prefix="/settings", tags=["Settings"])
 
@@ -57,3 +58,48 @@ async def get_provider_catalog(db: AsyncSession = Depends(get_db_session)):
 async def _credential_preview(db: AsyncSession, purpose: str) -> Optional[str]:
     credential = await db.get(Credential, purpose)
     return credential.preview if credential else None
+
+
+# ── Per-step model configs ────────────────────────────────────────────────────
+
+@router.get(
+    "/llm",
+    response_model=StepConfigsResponse,
+    summary="Per-step LLM selection (defaults where unconfigured)",
+)
+async def get_llm_settings(db: AsyncSession = Depends(get_db_session)):
+    rows = {
+        row.step_key: row
+        for row in (await db.execute(select(LlmStepConfig))).scalars().all()
+    }
+
+    steps = []
+    for key in StepKey:
+        row = rows.get(key)
+        if row is not None:
+            steps.append(
+                StepConfigOut(
+                    step_key=key,
+                    provider_id=row.provider_id,
+                    model_id=row.model_id,
+                    temperature=row.temperature,
+                    max_output_tokens=row.max_output_tokens,
+                    is_default=False,
+                    credential_configured=await _provider_configured(db, row.provider_id),
+                )
+            )
+        else:
+            provider_id, model_id = DEFAULT_STEP_MODELS[key]
+            steps.append(
+                StepConfigOut(
+                    step_key=key,
+                    provider_id=provider_id,
+                    model_id=model_id,
+                    temperature=None,
+                    max_output_tokens=None,
+                    is_default=True,
+                    credential_configured=await _provider_configured(db, provider_id),
+                )
+            )
+
+    return StepConfigsResponse(steps=steps)
