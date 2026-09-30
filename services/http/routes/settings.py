@@ -9,7 +9,7 @@ from services.agent.llm.registry import UnknownProviderError, get_provider, miss
 from services.agent.llm.resolver import DEFAULT_STEP_MODELS, STEP_LABELS
 from services.db.database import get_db_session
 from services.db.models.credentials import Credential, LlmStepConfig
-from services.http.schemas.settings import CatalogResponse, CredentialOut, CredentialPayloadIn, ProviderOut, StepConfigIn, StepConfigOut, StepConfigsResponse, StepKeyOut
+from services.http.schemas.settings import CatalogResponse, CredentialOut, CredentialPayloadIn, ProviderOut, StepConfigIn, StepConfigOut, StepConfigsResponse, StepKeyOut, TestCredentialResponse
 from services.secrets.store import SecretStore
 
 router = APIRouter(prefix="/settings", tags=["Settings"])
@@ -252,3 +252,55 @@ async def delete_credential(purpose: str, db: AsyncSession = Depends(get_db_sess
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"No credential stored for '{purpose}'",
         )
+
+
+@router.post(
+    "/credentials/{purpose}/test",
+    response_model=TestCredentialResponse,
+    summary="Store-less connectivity check against the provider",
+)
+async def test_credential(
+    purpose: str,
+    payload: CredentialPayloadIn,
+    db: AsyncSession = Depends(get_db_session),
+):
+    """Verify the supplied credential fields by making a tiny live call.
+    Nothing is persisted — used by the 'Verify' button during setup."""
+    try:
+        spec = get_provider(purpose)
+    except UnknownProviderError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Unknown credential purpose '{purpose}'",
+        )
+
+    fields = {k: v.strip() for k, v in payload.fields.items() if v and v.strip()}
+    missing = missing_credential_fields(spec, fields)
+    if missing:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Missing required field(s): {', '.join(missing)}",
+        )
+
+    model = spec.create(
+        credential=fields,
+        model_id=spec.models[0].id,
+        temperature=0,
+        max_output_tokens=None,
+    )
+    try:
+        await model.ainvoke("Say OK.")
+    except Exception as exc:
+        return TestCredentialResponse(
+            ok=False,
+            provider=spec.id,
+            model=spec.models[0].id,
+            message=f"Provider rejected the credential: {exc.__class__.__name__}",
+        )
+
+    return TestCredentialResponse(
+        ok=True,
+        provider=spec.id,
+        model=spec.models[0].id,
+        message="Credential verified — the provider accepted the request.",
+    )
