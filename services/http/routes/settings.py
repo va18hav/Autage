@@ -238,3 +238,17 @@ async def upsert_credential(
     preview = _build_preview(spec, fields)
     await SecretStore.save(purpose, fields, preview)
     return await db.get(Credential, purpose)
+
+
+@router.delete(
+    "/credentials/{purpose}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete a stored credential",
+)
+async def delete_credential(purpose: str, db: AsyncSession = Depends(get_db_session)):
+    deleted = await SecretStore.delete(purpose)
+    if not deleted:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No credential stored for '{purpose}'",
+        )
