@@ -9,7 +9,7 @@ from services.agent.llm.registry import UnknownProviderError, get_provider
 from services.agent.llm.resolver import DEFAULT_STEP_MODELS, STEP_LABELS
 from services.db.database import get_db_session
 from services.db.models.credentials import Credential, LlmStepConfig
-from services.http.schemas.settings import CatalogResponse, ProviderOut, StepConfigIn, StepConfigOut, StepConfigsResponse, StepKeyOut
+from services.http.schemas.settings import CatalogResponse, CredentialOut, ProviderOut, StepConfigIn, StepConfigOut, StepConfigsResponse, StepKeyOut
 
 router = APIRouter(prefix="/settings", tags=["Settings"])
 
@@ -195,3 +195,14 @@ def _validate_selection(provider_id: str, model_id: str) -> None:
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Model '{model_id}' is not registered for provider '{provider_id}'",
         )
+
+
+# ── Credential management ─────────────────────────────────────────────────────
+
+@router.get(
+    "/credentials",
+    response_model=List[CredentialOut],
+    summary="Stored credentials (masked — payloads are never returned)",
+)
+async def list_credentials(db: AsyncSession = Depends(get_db_session)):
+    return (await db.execute(select(Credential).order_by(Credential.purpose))).scalars().all()
