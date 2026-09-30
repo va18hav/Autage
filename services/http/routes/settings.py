@@ -5,11 +5,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from services.agent.llm import registry, StepKey
-from services.agent.llm.registry import UnknownProviderError, get_provider
+from services.agent.llm.registry import UnknownProviderError, get_provider, missing_credential_fields
 from services.agent.llm.resolver import DEFAULT_STEP_MODELS, STEP_LABELS
 from services.db.database import get_db_session
 from services.db.models.credentials import Credential, LlmStepConfig
-from services.http.schemas.settings import CatalogResponse, CredentialOut, ProviderOut, StepConfigIn, StepConfigOut, StepConfigsResponse, StepKeyOut
+from services.http.schemas.settings import CatalogResponse, CredentialOut, CredentialPayloadIn, ProviderOut, StepConfigIn, StepConfigOut, StepConfigsResponse, StepKeyOut
+from services.secrets.store import SecretStore
 
 router = APIRouter(prefix="/settings", tags=["Settings"])
 
@@ -206,3 +207,34 @@ def _validate_selection(provider_id: str, model_id: str) -> None:
 )
 async def list_credentials(db: AsyncSession = Depends(get_db_session)):
     return (await db.execute(select(Credential).order_by(Credential.purpose))).scalars().all()
+
+
+@router.put(
+    "/credentials/{purpose}",
+    response_model=CredentialOut,
+    summary="Create or rotate the credential for `purpose`",
+)
+async def upsert_credential(
+    purpose: str,
+    payload: CredentialPayloadIn,
+    db: AsyncSession = Depends(get_db_session),
+):
+    try:
+        spec = get_provider(purpose)
+    except UnknownProviderError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Unknown credential purpose '{purpose}'",
+        )
+
+    fields = {k: v.strip() for k, v in payload.fields.items() if v and v.strip()}
+    missing = missing_credential_fields(spec, fields)
+    if missing:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Missing required field(s): {', '.join(missing)}",
+        )
+
+    preview = _build_preview(spec, fields)
+    await SecretStore.save(purpose, fields, preview)
+    return await db.get(Credential, purpose)
