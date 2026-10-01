@@ -353,3 +353,12 @@ async def generate_webhook_secret():
         preview=row.preview,
         updated_at=row.updated_at,
     )
+
+
+# ── Kubernetes cluster connection ─────────────────────────────────────────────
+
+def _mask_k8s_token(token: str) -> str:
+    t = token.strip()
+    if len(t) > 12:
+        return f"{t[:6]}…{t[-4:]}"
+    return "••••"
