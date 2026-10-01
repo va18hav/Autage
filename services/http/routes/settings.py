@@ -485,3 +485,17 @@ async def save_kubernetes_config(payload: KubernetesConfigIn):
         token_preview=token_preview,
         updated_at=row.updated_at,
     )
+
+
+@router.delete(
+    "/kubernetes",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Disconnect the stored Kubernetes cluster",
+)
+async def delete_kubernetes_config():
+    deleted = await SecretStore.delete(KUBERNETES_PURPOSE)
+    if not deleted:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No Kubernetes cluster configuration found",
+        )
