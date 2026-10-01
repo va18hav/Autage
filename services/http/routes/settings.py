@@ -1,4 +1,8 @@
+import json
 import secrets
+import ssl
+import urllib.error
+import urllib.request
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -8,6 +12,7 @@ from sqlalchemy import select
 from services.agent.llm import registry, StepKey
 from services.agent.llm.registry import UnknownProviderError, get_provider, missing_credential_fields
 from services.agent.llm.resolver import DEFAULT_STEP_MODELS, STEP_LABELS
+from services.config import settings
 from services.db.database import get_db_session
 from services.db.models.credentials import Credential, LlmStepConfig
 from services.http.schemas.settings import CatalogResponse, CredentialOut, CredentialPayloadIn, ProviderOut, StepConfigIn, StepConfigOut, StepConfigsResponse, StepKeyOut, TestCredentialResponse, WebhookSecretOut
@@ -362,3 +367,67 @@ def _mask_k8s_token(token: str) -> str:
     if len(t) > 12:
         return f"{t[:6]}…{t[-4:]}"
     return "••••"
+
+
+def _probe_k8s_api(server_url: str, token: str) -> TestCredentialResponse:
+    base = server_url.strip().rstrip("/")
+    if not (base.startswith("https://") or base.startswith("http://")):
+        return TestCredentialResponse(
+            ok=False,
+            provider="kubernetes",
+            model=None,
+            message="Cluster API URL must start with https:// or http://",
+        )
+
+    url = f"{base}/api/v1/namespaces?limit=1"
+    req = urllib.request.Request(
+        url,
+        headers={
+            "Authorization": f"Bearer {token.strip()}",
+            "Accept": "application/json",
+        },
+        method="GET",
+    )
+    ctx = (
+        ssl.create_default_context()
+        if settings.K8S_VERIFY_SSL
+        else ssl._create_unverified_context()
+    )
+
+    try:
+        with urllib.request.urlopen(req, context=ctx, timeout=8) as resp:
+            body = json.loads(resp.read().decode("utf-8"))
+            if body.get("kind") == "NamespaceList":
+                return TestCredentialResponse(
+                    ok=True,
+                    provider="kubernetes",
+                    model=base,
+                    message="Connected to Kubernetes API server and verified read access.",
+                )
+            return TestCredentialResponse(
+                ok=True,
+                provider="kubernetes",
+                model=base,
+                message=f"Connected to cluster ({resp.status}).",
+            )
+    except urllib.error.HTTPError as exc:
+        if exc.code in (401, 403):
+            return TestCredentialResponse(
+                ok=False,
+                provider="kubernetes",
+                model=base,
+                message=f"Cluster rejected the ServiceAccount token (HTTP {exc.code}). Ensure the 'view' ClusterRoleBinding is attached.",
+            )
+        return TestCredentialResponse(
+            ok=False,
+            provider="kubernetes",
+            model=base,
+            message=f"Kubernetes API returned HTTP {exc.code}.",
+        )
+    except Exception as exc:
+        return TestCredentialResponse(
+            ok=False,
+            provider="kubernetes",
+            model=base,
+            message=f"Could not reach cluster at {base} ({exc.__class__.__name__}).",
+        )
