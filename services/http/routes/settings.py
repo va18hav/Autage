@@ -15,7 +15,7 @@ from services.agent.llm.resolver import DEFAULT_STEP_MODELS, STEP_LABELS
 from services.config import settings
 from services.db.database import get_db_session
 from services.db.models.credentials import Credential, LlmStepConfig
-from services.http.schemas.settings import CatalogResponse, CredentialOut, CredentialPayloadIn, ProviderOut, StepConfigIn, StepConfigOut, StepConfigsResponse, StepKeyOut, TestCredentialResponse, WebhookSecretOut
+from services.http.schemas.settings import CatalogResponse, CredentialOut, CredentialPayloadIn, KubernetesConfigOut, ProviderOut, StepConfigIn, StepConfigOut, StepConfigsResponse, StepKeyOut, TestCredentialResponse, WebhookSecretOut
 from services.secrets.store import SecretStore
 
 router = APIRouter(prefix="/settings", tags=["Settings"])
@@ -431,3 +431,29 @@ def _probe_k8s_api(server_url: str, token: str) -> TestCredentialResponse:
             model=base,
             message=f"Could not reach cluster at {base} ({exc.__class__.__name__}).",
         )
+
+
+@router.get(
+    "/kubernetes",
+    response_model=KubernetesConfigOut,
+    summary="Fetch the stored Kubernetes cluster connection state",
+)
+async def get_kubernetes_config(db: AsyncSession = Depends(get_db_session)):
+    row = await db.get(Credential, KUBERNETES_PURPOSE)
+    if row is None:
+        return KubernetesConfigOut(
+            configured=False,
+            server_url=None,
+            token_preview=None,
+            updated_at=None,
+        )
+
+    payload = await SecretStore.fetch_payload(KUBERNETES_PURPOSE) or {}
+    server_url = payload.get("server_url")
+    token = payload.get("token") or ""
+    return KubernetesConfigOut(
+        configured=bool(server_url and token),
+        server_url=server_url,
+        token_preview=_mask_k8s_token(token) if token else row.preview,
+        updated_at=row.updated_at,
+    )
