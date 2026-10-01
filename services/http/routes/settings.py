@@ -1,3 +1,4 @@
+import asyncio
 import json
 import secrets
 import ssl
@@ -10,12 +11,29 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from services.agent.llm import registry, StepKey
-from services.agent.llm.registry import UnknownProviderError, get_provider, missing_credential_fields
+from services.agent.llm.registry import (
+    UnknownProviderError,
+    get_provider,
+    missing_credential_fields,
+)
 from services.agent.llm.resolver import DEFAULT_STEP_MODELS, STEP_LABELS
 from services.config import settings
 from services.db.database import get_db_session
 from services.db.models.credentials import Credential, LlmStepConfig
-from services.http.schemas.settings import CatalogResponse, CredentialOut, CredentialPayloadIn, KubernetesConfigIn, KubernetesConfigOut, ProviderOut, StepConfigIn, StepConfigOut, StepConfigsResponse, StepKeyOut, TestCredentialResponse, WebhookSecretOut
+from services.http.schemas.settings import (
+    CatalogResponse,
+    CredentialOut,
+    CredentialPayloadIn,
+    KubernetesConfigIn,
+    KubernetesConfigOut,
+    ProviderOut,
+    StepConfigIn,
+    StepConfigOut,
+    StepConfigsResponse,
+    StepKeyOut,
+    TestCredentialResponse,
+    WebhookSecretOut,
+)
 from services.secrets.store import SecretStore
 
 router = APIRouter(prefix="/settings", tags=["Settings"])
@@ -499,3 +517,16 @@ async def delete_kubernetes_config():
             status_code=status.HTTP_404_NOT_FOUND,
             detail="No Kubernetes cluster configuration found",
         )
+
+
+@router.post(
+    "/kubernetes/test",
+    response_model=TestCredentialResponse,
+    summary="Verify connectivity and read permissions against the Kubernetes API server",
+)
+async def test_kubernetes_config(payload: KubernetesConfigIn):
+    return await asyncio.to_thread(
+        _probe_k8s_api,
+        payload.server_url,
+        payload.token,
+    )
