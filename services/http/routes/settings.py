@@ -1,3 +1,4 @@
+import secrets
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -327,6 +328,27 @@ async def get_webhook_secret(db: AsyncSession = Depends(get_db_session)):
     secret_val = (payload or {}).get("secret")
     return WebhookSecretOut(
         configured=bool(secret_val),
+        secret=secret_val,
+        preview=row.preview,
+        updated_at=row.updated_at,
+    )
+
+
+@router.post(
+    "/webhook/secret",
+    response_model=WebhookSecretOut,
+    summary="Generate a new webhook signing secret and store it encrypted in the credentials table",
+)
+async def generate_webhook_secret():
+    secret_val = f"whsec_{secrets.token_hex(24)}"
+    preview = f"{secret_val[:9]}…{secret_val[-4:]}"
+    row = await SecretStore.save(
+        WEBHOOK_SECRET_PURPOSE,
+        {"secret": secret_val},
+        preview,
+    )
+    return WebhookSecretOut(
+        configured=True,
         secret=secret_val,
         preview=row.preview,
         updated_at=row.updated_at,
