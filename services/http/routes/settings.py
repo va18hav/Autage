@@ -15,7 +15,7 @@ from services.agent.llm.resolver import DEFAULT_STEP_MODELS, STEP_LABELS
 from services.config import settings
 from services.db.database import get_db_session
 from services.db.models.credentials import Credential, LlmStepConfig
-from services.http.schemas.settings import CatalogResponse, CredentialOut, CredentialPayloadIn, KubernetesConfigOut, ProviderOut, StepConfigIn, StepConfigOut, StepConfigsResponse, StepKeyOut, TestCredentialResponse, WebhookSecretOut
+from services.http.schemas.settings import CatalogResponse, CredentialOut, CredentialPayloadIn, KubernetesConfigIn, KubernetesConfigOut, ProviderOut, StepConfigIn, StepConfigOut, StepConfigsResponse, StepKeyOut, TestCredentialResponse, WebhookSecretOut
 from services.secrets.store import SecretStore
 
 router = APIRouter(prefix="/settings", tags=["Settings"])
@@ -455,5 +455,33 @@ async def get_kubernetes_config(db: AsyncSession = Depends(get_db_session)):
         configured=bool(server_url and token),
         server_url=server_url,
         token_preview=_mask_k8s_token(token) if token else row.preview,
+        updated_at=row.updated_at,
+    )
+
+
+@router.put(
+    "/kubernetes",
+    response_model=KubernetesConfigOut,
+    summary="Save or update the Kubernetes cluster API URL and ServiceAccount token",
+)
+async def save_kubernetes_config(payload: KubernetesConfigIn):
+    server_url = payload.server_url.strip().rstrip("/")
+    token = payload.token.strip()
+    if not (server_url.startswith("https://") or server_url.startswith("http://")):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cluster API URL must start with https:// or http://",
+        )
+
+    token_preview = _mask_k8s_token(token)
+    row = await SecretStore.save(
+        KUBERNETES_PURPOSE,
+        {"server_url": server_url, "token": token},
+        preview=f"{server_url} ({token_preview})",
+    )
+    return KubernetesConfigOut(
+        configured=True,
+        server_url=server_url,
+        token_preview=token_preview,
         updated_at=row.updated_at,
     )
