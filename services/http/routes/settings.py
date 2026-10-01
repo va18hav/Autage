@@ -9,7 +9,7 @@ from services.agent.llm.registry import UnknownProviderError, get_provider, miss
 from services.agent.llm.resolver import DEFAULT_STEP_MODELS, STEP_LABELS
 from services.db.database import get_db_session
 from services.db.models.credentials import Credential, LlmStepConfig
-from services.http.schemas.settings import CatalogResponse, CredentialOut, CredentialPayloadIn, ProviderOut, StepConfigIn, StepConfigOut, StepConfigsResponse, StepKeyOut, TestCredentialResponse
+from services.http.schemas.settings import CatalogResponse, CredentialOut, CredentialPayloadIn, ProviderOut, StepConfigIn, StepConfigOut, StepConfigsResponse, StepKeyOut, TestCredentialResponse, WebhookSecretOut
 from services.secrets.store import SecretStore
 
 router = APIRouter(prefix="/settings", tags=["Settings"])
@@ -303,4 +303,31 @@ async def test_credential(
         provider=spec.id,
         model=spec.models[0].id,
         message="Credential verified — the provider accepted the request.",
+    )
+
+
+# ── Monitoring webhook secret ─────────────────────────────────────────────────
+
+@router.get(
+    "/webhook",
+    response_model=WebhookSecretOut,
+    summary="Fetch the current monitoring webhook secret state from the credentials table",
+)
+async def get_webhook_secret(db: AsyncSession = Depends(get_db_session)):
+    row = await db.get(Credential, WEBHOOK_SECRET_PURPOSE)
+    if row is None:
+        return WebhookSecretOut(
+            configured=False,
+            secret=None,
+            preview=None,
+            updated_at=None,
+        )
+
+    payload = await SecretStore.fetch_payload(WEBHOOK_SECRET_PURPOSE)
+    secret_val = (payload or {}).get("secret")
+    return WebhookSecretOut(
+        configured=bool(secret_val),
+        secret=secret_val,
+        preview=row.preview,
+        updated_at=row.updated_at,
     )
