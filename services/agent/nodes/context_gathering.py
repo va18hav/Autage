@@ -1,0 +1,148 @@
+from typing import Dict, Any, Optional, List
+from enum import Enum
+from pydantic import BaseModel, Field
+from langchain_google_genai import ChatGoogleGenerativeAI
+
+from services.agent.state import AgentState
+from services.agent.prompts.context_gathering import build_plan_prompt, build_summary_prompt
+from services.agent.tools.kubectl import (
+    get_pod_logs,
+    get_pod_logs_previous,
+    get_pod_status,
+    describe_pod,
+    get_events,
+    list_pods,
+    get_deployment,
+)
+
+
+# ── Structured output models ──────────────────────────────────────────────────
+
+class KubectlTool(str, Enum):
+    GET_POD_LOGS          = "get_pod_logs"
+    GET_POD_LOGS_PREVIOUS = "get_pod_logs_previous"
+    GET_POD_STATUS        = "get_pod_status"
+    DESCRIBE_POD          = "describe_pod"
+    GET_EVENTS            = "get_events"
+    LIST_PODS             = "list_pods"
+    GET_DEPLOYMENT        = "get_deployment"
+
+
+class KubectlCommand(BaseModel):
+    """A single kubectl command the LLM wants to run."""
+    tool: KubectlTool         = Field(description="The tool/function to call")
+    namespace: str            = Field(description="Kubernetes namespace to target")
+    pod_name: Optional[str]   = Field(default=None, description="Pod name — required for pod-specific tools")
+    deployment_name: Optional[str] = Field(default=None, description="Deployment name — required for get_deployment")
+    tail: Optional[int]       = Field(default=100, description="Number of log lines to fetch (log tools only)")
+
+
+class KubectlPlan(BaseModel):
+    """LLM's plan: which commands to run and why."""
+    reasoning: str                  = Field(description="Brief reasoning for why these tools were chosen")
+    commands: List[KubectlCommand]  = Field(description="List of kubectl commands to execute")
+
+
+class ContextSummary(BaseModel):
+    """LLM's analysis of the raw kubectl outputs."""
+    affected_pods: List[str]        = Field(description="Names of the affected pods identified from the data")
+    root_cause_hypothesis: str      = Field(description="Most likely root cause based on the evidence")
+    key_signals: List[str]          = Field(description="3-5 key observations from the cluster data")
+    recommended_next_steps: List[str] = Field(description="Concrete next diagnostic or remediation steps")
+
+
+# ── Tool dispatcher ───────────────────────────────────────────────────────────
+
+# Maps each KubectlTool enum value to the actual function call.
+# The node uses this to execute whatever the LLM decided to run.
+TOOL_DISPATCHER = {
+    KubectlTool.GET_POD_LOGS: lambda cmd: get_pod_logs(
+        namespace=cmd.namespace,
+        pod_name=cmd.pod_name,
+        tail=cmd.tail or 100,
+    ),
+    KubectlTool.GET_POD_LOGS_PREVIOUS: lambda cmd: get_pod_logs_previous(
+        namespace=cmd.namespace,
+        pod_name=cmd.pod_name,
+        tail=cmd.tail or 100,
+    ),
+    KubectlTool.GET_POD_STATUS: lambda cmd: get_pod_status(
+        namespace=cmd.namespace,
+        pod_name=cmd.pod_name,
+    ),
+    KubectlTool.DESCRIBE_POD: lambda cmd: describe_pod(
+        namespace=cmd.namespace,
+        pod_name=cmd.pod_name,
+    ),
+    KubectlTool.GET_EVENTS: lambda cmd: get_events(
+        namespace=cmd.namespace,
+    ),
+    KubectlTool.LIST_PODS: lambda cmd: list_pods(
+        namespace=cmd.namespace,
+    ),
+    KubectlTool.GET_DEPLOYMENT: lambda cmd: get_deployment(
+        namespace=cmd.namespace,
+        deployment_name=cmd.deployment_name,
+    ),
+}
+
+
+# ── Node ──────────────────────────────────────────────────────────────────────
+
+def gather_context(state: AgentState) -> Dict[str, Any]:
+    """
+    Context gathering node.
+
+    Step 1 — LLM reads the raw_alert and decides which kubectl commands to run.
+    Step 2 — Node executes those commands using the tool dispatcher.
+    Step 3 — LLM reads all outputs and produces a structured ContextSummary.
+    """
+    llm = ChatGoogleGenerativeAI(model="gemini-3.7-flash", temperature=0)
+
+    # ── Step 1: Ask LLM which commands to run ────────────────────────────────
+    plan_prompt = build_plan_prompt(
+        raw_alert=state["raw_alert"],
+        incident_title=state["incident_title"],
+        severity=state["severity"],
+        summary=state["summary"],
+    )
+
+    plan_llm = llm.with_structured_output(KubectlPlan)
+    plan: KubectlPlan = plan_llm.invoke(plan_prompt)
+
+    # ── Step 2: Execute each command the LLM chose ───────────────────────────
+    context: Dict[str, Any] = {}
+    errors: List[str] = []
+
+    for cmd in plan.commands:
+        # Build a unique key for each result, e.g. "get_pod_logs:auth-service-xyz"
+        key_suffix = cmd.pod_name or cmd.deployment_name or cmd.namespace
+        result_key = f"{cmd.tool.value}:{key_suffix}"
+
+        executor = TOOL_DISPATCHER.get(cmd.tool)
+        if executor is None:
+            errors.append(f"Unknown tool requested by LLM: {cmd.tool}")
+            continue
+
+        result = executor(cmd)
+        context[result_key] = result
+
+        if not result["ok"]:
+            errors.append(f"{result_key} failed: {result['error']}")
+
+    # ── Step 3: Ask LLM to summarize all outputs ─────────────────────────────
+    summary_prompt = build_summary_prompt(
+        incident_title=state["incident_title"],
+        severity=state["severity"],
+        summary=state["summary"],
+        context=context,
+    )
+
+    summary_llm = llm.with_structured_output(ContextSummary)
+    context_summary: ContextSummary = summary_llm.invoke(summary_prompt)
+
+    return {
+        "context": context,
+        "context_summary": context_summary.model_dump(),
+        "context_error": "; ".join(errors) if errors else None,
+    }
