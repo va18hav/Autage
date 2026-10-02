@@ -2,13 +2,16 @@ import json
 import hashlib
 import time
 
+from typing import List
 
 from fastapi import APIRouter, Request, Depends, status
 from pydantic import BaseModel
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from services.db.database import get_db_session
 from services.db.models.incident import Incident, IncidentStatus
+from services.http.schemas.incident import IncidentListItemResponse
 
 router = APIRouter(prefix="/incidents", tags=["Incidents"])
 
@@ -105,3 +108,17 @@ async def simulate_incident(
         "incident_id": str(incident.id),
         "status": incident.status,
     }
+
+@router.get(
+    "",
+    response_model=List[IncidentListItemResponse],
+    summary="List incidents sorted by the most recent ones"
+)
+async def list_incidents(
+    db: AsyncSession = Depends(get_db_session)
+):
+
+    query = select(Incident).order_by(Incident.created_at.desc())
+    result = await db.execute(query)
+    incidents = result.scalars().all()
+    return incidents
