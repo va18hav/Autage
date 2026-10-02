@@ -1,4 +1,5 @@
 import os
+import asyncio
 os.environ["MOCK_KUBECTL"] = "true"   # use mock kubectl responses — no real cluster needed
 
 from dotenv import load_dotenv
@@ -10,8 +11,12 @@ import json
 
 graph = builder.compile()
 
-if __name__ == "__main__":
+async def main():
+    
     print("--- Running SRE Agent Graph ---")
-    result = graph.invoke(MOCK_INCIDENT)
+    result = await graph.ainvoke(MOCK_INCIDENT)
     print("\n--- Final Graph State ---")
-    print(json.dumps(result, indent=2, default=str))
+    print(json.dumps(result, indent=2, default=str))
+
+if __name__ == "__main__":
+    asyncio.run(main())

@@ -1,4 +1,4 @@
-import os
+from services.config import settings
 import subprocess
 from typing import Optional
 
@@ -10,7 +10,7 @@ def _run(args: list[str]) -> dict:
     mock responses instead of hitting a real cluster.
     Returns a dict with ok (bool), output (str), and error (str).
     """
-    if os.getenv("MOCK_KUBECTL") == "true":
+    if settings.MOCK_KUBECTL:
         from services.agent.mock.kubectl_responses import get_mock_response
         return get_mock_response(args)
 

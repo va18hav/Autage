@@ -1,4 +1,5 @@
 .env
+finalstate.json
 
 # Python-generated files
 __pycache__/
