@@ -3,15 +3,17 @@ import hashlib
 import time
 
 from typing import List
+from uuid import UUID
 
-from fastapi import APIRouter, Request, Depends, status
+from fastapi import APIRouter, Request, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from services.db.database import get_db_session
 from services.db.models.incident import Incident, IncidentStatus
-from services.http.schemas.incident import IncidentListItemResponse
+from services.http.schemas.incident import IncidentDetailResponse, IncidentListItemResponse
 
 router = APIRouter(prefix="/incidents", tags=["Incidents"])
 
@@ -122,3 +124,26 @@ async def list_incidents(
     result = await db.execute(query)
     incidents = result.scalars().all()
     return incidents
+
+@router.get("/{incident_id}", response_model=IncidentDetailResponse)
+async def get_incident(
+    incident_id: UUID,
+    db: AsyncSession = Depends(get_db_session)
+):
+
+    query = (
+        select(Incident)
+        .where(Incident.id == incident_id)
+        .options(selectinload(Incident.steps))
+    )
+
+    result = await db.execute(query)
+    incident = result.scalar_one_or_none()
+
+    if not incident:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Incident {incident_id} not found",
+        )
+
+    return incident
