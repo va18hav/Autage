@@ -1,8 +1,14 @@
+import json
+import hashlib
+import time
 
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Request, Depends, status
 from pydantic import BaseModel
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from services.db.database import get_db_session
+from services.db.models.incident import Incident, IncidentStatus
 
 router = APIRouter(prefix="/incidents", tags=["Incidents"])
 
@@ -59,3 +65,43 @@ SCENARIO_ALERTS = {
         "message": "Upstream HTTP 504 Gateway Timeout rate exceeded 34% on production ingress.",
     },
 }
+
+
+@router.post(
+    "/simulate",
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Trigger a simulated alert scenario for testing the autonomous pipeline",
+)
+async def simulate_incident(
+    payload: SimulateIncidentRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db_session),
+) -> dict:
+    ts = int(time.time() * 1000)
+    builder_fn = SCENARIO_ALERTS.get(payload.scenario, SCENARIO_ALERTS["oomkill"])
+    raw_alert = builder_fn(ts)
+
+    fingerprint = hashlib.sha256(
+        json.dumps(raw_alert, sort_keys=True).encode()
+    ).hexdigest()[:64]
+
+    incident = Incident(
+        title="Pending triage",
+        status=IncidentStatus.PENDING,
+        raw_alert=raw_alert,
+        fingerprint=fingerprint,
+    )
+    db.add(incident)
+    await db.commit()
+    await db.refresh(incident)
+
+    await request.app.state.arq_pool.enqueue_job(
+        "run_agent_task",
+        str(incident.id),
+        _job_id=f"incident:{incident.id}",
+    )
+
+    return {
+        "incident_id": str(incident.id),
+        "status": incident.status,
+    }
