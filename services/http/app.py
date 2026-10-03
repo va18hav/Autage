@@ -6,6 +6,7 @@ from arq.connections import RedisSettings
 
 from services.config import settings
 from services.http.routes.auth import router as auth_router
+from services.http.routes.webhook import router as webhook_router
 
 
 @asynccontextmanager
@@ -34,3 +35,4 @@ app.add_middleware(
 )
 
 app.include_router(auth_router)
+app.include_router(webhook_router)
