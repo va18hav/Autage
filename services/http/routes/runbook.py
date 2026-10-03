@@ -1,3 +1,4 @@
+from typing import List
 
 from fastapi import APIRouter, Depends, status
 from sqlalchemy import select
@@ -5,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from services.db.database import get_db_session
 from services.db.models.runbooks import Runbook, RunbookSection
-from services.http.schemas.runbook import RunbookCreate, RunbookDetailResponse
+from services.http.schemas.runbook import RunbookCreate, RunbookDetailResponse, RunbookListItemResponse
 
 router = APIRouter(prefix="/runbooks", tags=["Runbooks"])
 
@@ -68,3 +69,15 @@ async def create_runbook(
     await db.refresh(runbook)
 
     return runbook
+
+
+@router.get(
+    "",
+    response_model=List[RunbookListItemResponse],
+    summary="List runbooks, most recent first",
+)
+async def list_runbooks(db: AsyncSession = Depends(get_db_session)):
+    result = await db.execute(
+        select(Runbook).order_by(Runbook.created_at.desc())
+    )
+    return result.scalars().all()
