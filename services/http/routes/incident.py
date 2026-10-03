@@ -3,13 +3,13 @@ import asyncio
 import hashlib
 import time
 
-from typing import List
+from typing import Optional, List
 from uuid import UUID
 
-from fastapi import APIRouter, Request, Depends, HTTPException, status
+from fastapi import APIRouter, Request, Depends, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -219,3 +219,23 @@ async def stream_incident(
             "X-Accel-Buffering": "no",
         }
     )
+
+@router.delete(
+    "/{incident_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete a particular incident",
+)
+async def delete_incident(
+    incident_id: UUID,
+    db: AsyncSession = Depends(get_db_session),
+):
+    incident = await db.get(Incident, incident_id)
+
+    if not incident:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Incident {incident_id} not found",
+        )
+
+    await db.delete(incident)
+    await db.commit()
