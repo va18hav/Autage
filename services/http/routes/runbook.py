@@ -8,7 +8,11 @@ from sqlalchemy.orm import selectinload
 
 from services.db.database import get_db_session
 from services.db.models.runbooks import Runbook, RunbookSection
-from services.http.schemas.runbook import RunbookCreate, RunbookDetailResponse, RunbookListItemResponse
+from services.http.schemas.runbook import (
+    RunbookCreate,
+    RunbookDetailResponse,
+    RunbookListItemResponse,
+)
 
 router = APIRouter(prefix="/runbooks", tags=["Runbooks"])
 
@@ -108,3 +112,23 @@ async def get_runbook(
         )
 
     return runbook
+
+
+@router.delete(
+    "/{runbook_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete a runbook (sections cascade)",
+)
+async def delete_runbook(
+    runbook_id: UUID,
+    db: AsyncSession = Depends(get_db_session),
+):
+    runbook = await db.get(Runbook, runbook_id)
+    if not runbook:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Runbook {runbook_id} not found",
+        )
+
+    await db.delete(runbook)
+    await db.commit()
