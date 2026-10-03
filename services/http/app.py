@@ -13,3 +13,12 @@ async def lifespan(app: FastAPI):
     yield
 
     await app.state.arq_pool.aclose()
+
+
+
+app = FastAPI(
+    title="Autage",
+    description="Autonomous agentic SRE copilot",
+    version="0.1.0",
+    lifespan=lifespan,
+)
