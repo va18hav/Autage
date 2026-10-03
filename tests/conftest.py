@@ -2,11 +2,14 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID, uuid4
+import httpx
 import pytest
+from services.db.database import get_db_session
 from services.db.models.credentials import Credential, LlmStepConfig
 from services.db.models.incident import Incident, IncidentStatus, IncidentStep
 from services.db.models.runbooks import Runbook, RunbookSection
 from services.db.models.user import User
+from services.http.app import app
 from services.secrets.crypto import _decrypt_payload, encrypt_payload
 from services.secrets.store import SecretStore
 
@@ -248,6 +251,44 @@ class InMemoryAsyncSession:
         return FakeExecuteResult([])
 
 
+class FakePubSub:
+    def __init__(self, messages: list[dict[str, Any]] | None = None):
+        self.subscribed_channels: list[str] = []
+        self.unsubscribed_channels: list[str] = []
+        self.closed: bool = False
+        self._messages = list(messages or [])
+
+    async def subscribe(self, channel: str) -> None:
+        self.subscribed_channels.append(channel)
+
+    async def unsubscribe(self, channel: str) -> None:
+        self.unsubscribed_channels.append(channel)
+
+    async def aclose(self) -> None:
+        self.closed = True
+
+    async def get_message(self, ignore_subscribe_messages: bool = True, timeout: float = 1.0):
+        if self._messages:
+            return self._messages.pop(0)
+        return None
+
+
+class FakeArqPool:
+    def __init__(self, pubsub_messages: list[dict[str, Any]] | None = None):
+        self.enqueued: list[tuple[str, str, str | None]] = []
+        self.pubsub_instance = FakePubSub(pubsub_messages)
+        self.closed: bool = False
+
+    async def enqueue_job(self, func_name: str, incident_id: str, _job_id: str | None = None):
+        self.enqueued.append((func_name, incident_id, _job_id))
+
+    def pubsub(self) -> FakePubSub:
+        return self.pubsub_instance
+
+    async def aclose(self) -> None:
+        self.closed = True
+
+
 @pytest.fixture
 def in_memory_db(monkeypatch):
     session = InMemoryAsyncSession()
@@ -278,3 +319,23 @@ def in_memory_db(monkeypatch):
     monkeypatch.setattr(SecretStore, "delete", _fake_delete)
 
     return session
+
+
+@pytest.fixture
+def api_env(in_memory_db):
+    pool = FakeArqPool()
+    app.state.arq_pool = pool
+
+    async def _override_db():
+        yield in_memory_db
+
+    app.dependency_overrides[get_db_session] = _override_db
+    yield in_memory_db, pool
+    app.dependency_overrides.clear()
+
+
+@pytest.fixture
+async def api_client(api_env):
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        yield client
