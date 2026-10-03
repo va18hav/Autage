@@ -1,8 +1,10 @@
 from typing import List
+from uuid import UUID
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from services.db.database import get_db_session
 from services.db.models.runbooks import Runbook, RunbookSection
@@ -81,3 +83,28 @@ async def list_runbooks(db: AsyncSession = Depends(get_db_session)):
         select(Runbook).order_by(Runbook.created_at.desc())
     )
     return result.scalars().all()
+
+
+@router.get(
+    "/{runbook_id}",
+    response_model=RunbookDetailResponse,
+    summary="Runbook detail with ordered sections",
+)
+async def get_runbook(
+    runbook_id: UUID,
+    db: AsyncSession = Depends(get_db_session),
+):
+    result = await db.execute(
+        select(Runbook)
+        .where(Runbook.id == runbook_id)
+        .options(selectinload(Runbook.sections))
+    )
+    runbook = result.scalar_one_or_none()
+
+    if not runbook:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Runbook {runbook_id} not found",
+        )
+
+    return runbook
