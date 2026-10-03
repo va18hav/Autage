@@ -1,12 +1,14 @@
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from arq import create_pool
 from arq.connections import RedisSettings
 
 from services.config import settings
+from services.http.auth import get_current_user
 from services.http.routes.auth import router as auth_router
 from services.http.routes.webhook import router as webhook_router
+from services.http.routes.incident import router as incident_router
 
 
 @asynccontextmanager
@@ -36,3 +38,4 @@ app.add_middleware(
 
 app.include_router(auth_router)
 app.include_router(webhook_router)
+app.include_router(incident_router, dependencies=[Depends(get_current_user)])
