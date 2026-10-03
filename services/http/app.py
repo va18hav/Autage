@@ -9,6 +9,7 @@ from services.http.auth import get_current_user
 from services.http.routes.auth import router as auth_router
 from services.http.routes.webhook import router as webhook_router
 from services.http.routes.incident import router as incident_router
+from services.http.routes.runbook import router as runbook_router
 
 
 @asynccontextmanager
@@ -39,3 +40,4 @@ app.add_middleware(
 app.include_router(auth_router)
 app.include_router(webhook_router)
 app.include_router(incident_router, dependencies=[Depends(get_current_user)])
+app.include_router(runbook_router, dependencies=[Depends(get_current_user)])
