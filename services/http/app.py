@@ -5,6 +5,7 @@ from arq import create_pool
 from arq.connections import RedisSettings
 
 from services.config import settings
+from services.http.routes.auth import router as auth_router
 
 
 @asynccontextmanager
@@ -31,3 +32,5 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(auth_router)
