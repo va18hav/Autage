@@ -2,8 +2,10 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID, uuid4
+
 import httpx
 import pytest
+
 from services.db.database import get_db_session
 from services.db.models.credentials import Credential, LlmStepConfig
 from services.db.models.incident import Incident, IncidentStatus, IncidentStep
@@ -12,6 +14,7 @@ from services.db.models.user import User
 from services.http.app import app
 from services.secrets.crypto import _decrypt_payload, encrypt_payload
 from services.secrets.store import SecretStore
+
 
 @pytest.fixture
 def anyio_backend():
@@ -339,3 +342,16 @@ async def api_client(api_env):
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
         yield client
+
+
+@pytest.fixture
+async def authed_client(api_client):
+    await api_client.post(
+        "/auth/register",
+        json={
+            "name": "Ada Lovelace",
+            "username": "ada",
+            "password": "super-secret-password",
+        },
+    )
+    return api_client
