@@ -4,6 +4,7 @@ from pathlib import Path
 # Add project root to sys.path so it works directly from CLI
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+import asyncio
 import uuid
 
 from services.db.database import async_session_factory
@@ -165,3 +166,7 @@ async def seed():
         await db.commit()
 
     print("[OK] Successfully seeded 3 mock incidents with steps into PostgreSQL!")
+
+
+if __name__ == "__main__":
+    asyncio.run(seed())
