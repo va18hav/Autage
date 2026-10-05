@@ -66,3 +66,7 @@ def main():
     args = parser.parse_args()
 
     asyncio.run(delete_users(username=args.username, force=args.yes))
+
+
+if __name__ == "__main__":
+    main()
