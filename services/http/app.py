@@ -43,3 +43,8 @@ app.include_router(webhook_router)
 app.include_router(incident_router, dependencies=[Depends(get_current_user)])
 app.include_router(runbook_router, dependencies=[Depends(get_current_user)])
 app.include_router(settings_router, dependencies=[Depends(get_current_user)])
+
+
+@app.get("/health", tags=["Meta"])
+async def health():
+    return {"status": "ok"}
