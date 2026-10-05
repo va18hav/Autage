@@ -12,7 +12,6 @@ class IncidentStatus(str, enum.Enum):
     COMPLETED = "COMPLETED"
     FAILED = "FAILED"
 
-
 class Incident(Base, TimestampMixin):
     __tablename__ = "incidents"
 

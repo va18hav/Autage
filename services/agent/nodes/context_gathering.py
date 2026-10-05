@@ -2,12 +2,10 @@ from typing import Dict, Any, Optional, List
 from enum import Enum
 from pydantic import BaseModel, Field
 from langchain_google_genai import ChatGoogleGenerativeAI
-from sqlalchemy import update
 
 from services.agent.state import AgentState
 from services.agent.prompts.context_gathering import build_plan_prompt, build_summary_prompt
-from services.db.models.incident import IncidentStep, StepStatus
-from services.db.database import async_session_factory
+from services.agent.nodes.trace_step import traced_step
 from services.agent.tools.kubectl import (
     get_pod_logs,
     get_pod_logs_previous,
@@ -92,6 +90,7 @@ TOOL_DISPATCHER = {
 
 # ── Node ──────────────────────────────────────────────────────────────────────
 
+@traced_step("context_gathering")
 async def gather_context(state: AgentState) -> Dict[str, Any]:
     """
     Context gathering node.
@@ -102,80 +101,50 @@ async def gather_context(state: AgentState) -> Dict[str, Any]:
     """
     llm = ChatGoogleGenerativeAI(model="gemini-3.7-flash", temperature=0)
 
-    async with async_session_factory() as db:
-        step = IncidentStep(
-            incident_id=state["incident_id"],
-            step_name="context_gathering",
-            status=StepStatus.RUNNING,
-        )
-        db.add(step)
-        await db.commit()
-        await db.refresh(step)
-        step_id = step.id
+    # ── Step 1: Ask LLM which commands to run ────────────────────────────
+    plan_prompt = build_plan_prompt(
+        raw_alert=state["raw_alert"],
+        incident_title=state["incident_title"],
+        severity=state["severity"],
+        summary=state["summary"],
+    )
 
-    try:
-        # ── Step 1: Ask LLM which commands to run ────────────────────────
-        plan_prompt = build_plan_prompt(
-            raw_alert=state["raw_alert"],
-            incident_title=state["incident_title"],
-            severity=state["severity"],
-            summary=state["summary"],
-        )
+    plan_llm = llm.with_structured_output(KubectlPlan)
+    plan: KubectlPlan = await plan_llm.ainvoke(plan_prompt)
 
-        plan_llm = llm.with_structured_output(KubectlPlan)
-        plan: KubectlPlan = await plan_llm.ainvoke(plan_prompt)
+    # ── Step 2: Execute each command the LLM chose ───────────────────────
+    context: Dict[str, Any] = {}
+    errors: List[str] = []
 
-        # ── Step 2: Execute each command the LLM chose ───────────────────
-        context: Dict[str, Any] = {}
-        errors: List[str] = []
+    for cmd in plan.commands:
+        # Build a unique key for each result, e.g. "get_pod_logs:auth-service-xyz"
+        key_suffix = cmd.pod_name or cmd.deployment_name or cmd.namespace
+        result_key = f"{cmd.tool.value}:{key_suffix}"
 
-        for cmd in plan.commands:
-            # Build a unique key for each result, e.g. "get_pod_logs:auth-service-xyz"
-            key_suffix = cmd.pod_name or cmd.deployment_name or cmd.namespace
-            result_key = f"{cmd.tool.value}:{key_suffix}"
+        executor = TOOL_DISPATCHER.get(cmd.tool)
+        if executor is None:
+            errors.append(f"Unknown tool requested by LLM: {cmd.tool}")
+            continue
 
-            executor = TOOL_DISPATCHER.get(cmd.tool)
-            if executor is None:
-                errors.append(f"Unknown tool requested by LLM: {cmd.tool}")
-                continue
+        result = executor(cmd)
+        context[result_key] = result
 
-            result = executor(cmd)
-            context[result_key] = result
+        if not result["ok"]:
+            errors.append(f"{result_key} failed: {result['error']}")
 
-            if not result["ok"]:
-                errors.append(f"{result_key} failed: {result['error']}")
+    # ── Step 3: Ask LLM to summarize all outputs ─────────────────────────
+    summary_prompt = build_summary_prompt(
+        incident_title=state["incident_title"],
+        severity=state["severity"],
+        summary=state["summary"],
+        context=context,
+    )
 
-        # ── Step 3: Ask LLM to summarize all outputs ─────────────────────
-        summary_prompt = build_summary_prompt(
-            incident_title=state["incident_title"],
-            severity=state["severity"],
-            summary=state["summary"],
-            context=context,
-        )
+    summary_llm = llm.with_structured_output(ContextSummary)
+    context_summary: ContextSummary = await summary_llm.ainvoke(summary_prompt)
 
-        summary_llm = llm.with_structured_output(ContextSummary)
-        context_summary: ContextSummary = await summary_llm.ainvoke(summary_prompt)
-
-        async with async_session_factory() as db:
-            await db.execute(
-                update(IncidentStep)
-                .where(IncidentStep.id == step_id)
-                .values(status=StepStatus.COMPLETED)
-            )
-            await db.commit()
-
-        return {
-            "context": context,
-            "context_summary": context_summary.model_dump(),
-            "context_error": "; ".join(errors) if errors else None,
-        }
-
-    except Exception as e:
-        async with async_session_factory() as db:
-            await db.execute(
-                update(IncidentStep)
-                .where(IncidentStep.id == step_id)
-                .values(status=StepStatus.FAILED)
-            )
-            await db.commit()
-        raise e
+    return {
+        "context": context,
+        "context_summary": context_summary.model_dump(),
+        "context_error": "; ".join(errors) if errors else None,
+    }
