@@ -84,3 +84,7 @@ def send_alert():
         print(f"\n[ERROR] Connection Error: Could not connect to {url}.")
         print("        Make sure the FastAPI server is running with:")
         print("        uv run uvicorn services.http.app:app --host 0.0.0.0 --port 8000 --reload")
+
+
+if __name__ == "__main__":
+    send_alert()
