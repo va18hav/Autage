@@ -1,5 +1,12 @@
 import type { IncidentDetail, IncidentSummary, SseEvent } from '../types/incident'
 import type { RunbookCreate, RunbookDetail, RunbookSummary } from '../types/runbook'
+import type {
+  Credential,
+  ProviderCatalog,
+  StepConfig,
+  StepConfigUpdate,
+  TestCredentialResult,
+} from '../types/settings'
 
 const BASE_URL = '/api'
 
@@ -49,6 +56,42 @@ export const runbookApi = {
   detail: (id: string) => request<RunbookDetail>(`/runbooks/${id}`),
 
   delete: (id: string) => request<void>(`/runbooks/${id}`, { method: 'DELETE' }),
+}
+
+export const providerApi = {
+  catalog: () => request<ProviderCatalog>('/settings/providers'),
+}
+
+export const llmSettingsApi = {
+  get: () => request<{ steps: StepConfig[] }>('/settings/llm'),
+
+  save: (steps: StepConfigUpdate[]) =>
+    request<{ steps: StepConfig[] }>('/settings/llm', {
+      method: 'PUT',
+      body: JSON.stringify(steps),
+    }),
+
+  resetStep: (stepKey: string) =>
+    request<void>(`/settings/llm/${stepKey}`, { method: 'DELETE' }),
+}
+
+export const credentialApi = {
+  list: () => request<Credential[]>('/settings/credentials'),
+
+  save: (purpose: string, fields: Record<string, string>) =>
+    request<Credential>(`/settings/credentials/${purpose}`, {
+      method: 'PUT',
+      body: JSON.stringify({ fields }),
+    }),
+
+  delete: (purpose: string) =>
+    request<void>(`/settings/credentials/${purpose}`, { method: 'DELETE' }),
+
+  test: (purpose: string, fields: Record<string, string>) =>
+    request<TestCredentialResult>(`/settings/credentials/${purpose}/test`, {
+      method: 'POST',
+      body: JSON.stringify({ fields }),
+    }),
 }
 
 export function streamIncident(

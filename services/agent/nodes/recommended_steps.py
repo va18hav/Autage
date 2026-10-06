@@ -1,7 +1,7 @@
 from pydantic import BaseModel, Field
 from typing import List
 
-from langchain_google_genai import ChatGoogleGenerativeAI
+from services.agent.llm import StepKey, get_llm
 
 from services.agent.state import AgentState
 from services.agent.prompts.fetch_logs import build_recommended_steps_prompt
@@ -29,7 +29,7 @@ async def recommended_steps(state: AgentState) -> dict:
         runbooks_summary=state.get("runbooks_summary") or "",
     )
 
-    llm = ChatGoogleGenerativeAI(model="gemini-3.7-flash", temperature=0)
+    llm = get_llm(StepKey.RECOMMENDATIONS)
     structured = llm.with_structured_output(RecommendedSteps)
     response: RecommendedSteps = await structured.ainvoke(prompt)
 

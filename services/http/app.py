@@ -8,6 +8,7 @@ from services.config import settings
 from services.http.routes.webhook import router as webhook_router
 from services.http.routes.incident import router as incident_router
 from services.http.routes.runbook import router as runbook_router
+from services.http.routes.settings import router as settings_router
 
 
 @asynccontextmanager
@@ -38,6 +39,7 @@ app.add_middleware(
 app.include_router(webhook_router)
 app.include_router(incident_router)
 app.include_router(runbook_router)
+app.include_router(settings_router)
 
 
 @app.get("/health", tags=["Meta"])

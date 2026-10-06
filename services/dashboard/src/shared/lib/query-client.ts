@@ -11,6 +11,12 @@ export const queryKeys = {
     lists: () => [...queryKeys.runbooks.all, 'list'] as const,
     detail: (id: string) => [...queryKeys.runbooks.all, 'detail', id] as const,
   },
+  settings: {
+    all: ['settings'] as const,
+    catalog: () => [...queryKeys.settings.all, 'catalog'] as const,
+    llm: () => [...queryKeys.settings.all, 'llm'] as const,
+    credentials: () => [...queryKeys.settings.all, 'credentials'] as const,
+  },
 }
 
 export const queryClient = new QueryClient({

@@ -1,12 +1,14 @@
 import { Navigate, NavLink, Outlet, Route, Routes } from 'react-router-dom'
-import { LayoutDashboard, ScrollText } from 'lucide-react'
+import { LayoutDashboard, ScrollText, Settings } from 'lucide-react'
 import { DashboardPage } from './features/dashboard/dashboard-page'
 import { IncidentLivePage } from './features/incident/pages/incident-live-page'
 import { RunbooksPage } from './features/runbooks/runbooks-page'
+import { SettingsPage } from './features/settings/settings-page'
 
 const NAV_ITEMS = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/runbooks', label: 'Runbooks', icon: ScrollText },
+  { to: '/settings', label: 'Settings', icon: Settings },
 ] as const
 
 export function AppRoutes() {
@@ -16,6 +18,7 @@ export function AppRoutes() {
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/runbooks" element={<RunbooksPage />} />
+        <Route path="/settings" element={<SettingsPage />} />
         <Route path="/incidents/:incidentId/live" element={<IncidentLivePage />} />
       </Route>
       <Route path="*" element={<Navigate to="/dashboard" replace />} />

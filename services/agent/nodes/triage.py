@@ -4,7 +4,8 @@ from pydantic import BaseModel, Field
 from services.agent.state import AgentState
 from services.agent.prompts.triage import build_system_prompt
 from services.agent.nodes.trace_step import traced_step
-from langchain_google_genai import ChatGoogleGenerativeAI
+from services.agent.llm import StepKey, get_llm
+from services.agent.nodes.trace_step import traced_step
 
 class Severity(str, Enum):
     P1 = "P1"
@@ -23,7 +24,7 @@ async def process_alert(state: AgentState) -> Dict[str, Any]:
     """This node processes the raw alert, classifies severity, and summarizes it."""
     prompt = build_system_prompt(raw_alert=state["raw_alert"])
 
-    llm = ChatGoogleGenerativeAI(model="gemini-3.7-flash", temperature=0)
+    llm = get_llm(StepKey.TRIAGE)
     structured_llm = llm.with_structured_output(AlertTriage)
     response: AlertTriage = await structured_llm.ainvoke(prompt)
 

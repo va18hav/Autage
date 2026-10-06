@@ -19,6 +19,10 @@ class Settings(BaseSettings):
     DB_NAME: str = "autage"
     WEBHOOK_SECRET: str
 
+    # Master key (Fernet) used to encrypt integration credentials at rest.
+    # Generate once with: uv run python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+    AUTAGE_SECRET_KEY: str | None = None
+
     @property
     def database_url(self) -> str:
         return (

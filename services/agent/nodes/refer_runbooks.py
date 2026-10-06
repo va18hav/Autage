@@ -1,6 +1,6 @@
 from typing import Dict, Any, List, Optional
 from pydantic import BaseModel, Field
-from langchain_google_genai import ChatGoogleGenerativeAI
+from services.agent.llm import StepKey, get_llm
 
 from services.agent.llm_text import ai_text
 from services.agent.state import AgentState
@@ -32,7 +32,7 @@ async def refer_runbooks(state: AgentState) -> Dict[str, Any]:
     Tool 2 — get_runbook_sections() loads the full content of those sections.
     LLM    — summarizes the chosen procedures into a plain-text summary.
     """
-    llm = ChatGoogleGenerativeAI(model="gemini-3.7-flash", temperature=0)
+    llm = get_llm(StepKey.RUNBOOKS)
 
     # ── Tool 1: inventory (titles + section headings only) ───────────────
     inventory: List[Dict[str, Any]] = await list_runbooks()

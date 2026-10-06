@@ -1,7 +1,8 @@
 from typing import Dict, Any, Optional, List
 from enum import Enum
 from pydantic import BaseModel, Field
-from langchain_google_genai import ChatGoogleGenerativeAI
+from services.agent.llm import StepKey, get_llm
+from services.agent.nodes.trace_step import traced_step
 from sqlalchemy import func, select
 
 from services.agent.llm_text import ai_text
@@ -98,7 +99,7 @@ async def fetch_logs(state: AgentState) -> Dict[str, Any]:
     Step 2 — Node executes those commands using the tool dispatcher.
     Step 3 — LLM reads all outputs and produces a plain-text summary.
     """
-    llm = ChatGoogleGenerativeAI(model="gemini-3.7-flash", temperature=0)
+    llm = get_llm(StepKey.DIAGNOSTICS)
 
     # Runbook presence check — a cheap count, done here so both the worker and
     # standalone main.py runs get the same behavior.

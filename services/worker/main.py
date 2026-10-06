@@ -1,15 +1,19 @@
 import os
 import json
-import asyncio
 from arq.connections import RedisSettings
 from sqlalchemy import update
 
 from services.agent.state import AgentState
+from services.agent.llm import (
+    LlmConfigError,
+    LlmResolver,
+    reset_resolver,
+    set_resolver,
+)
+from services.agent.llm.resolver import friendly_error
 from services.config import settings
 
-# Ensure LangChain and Google GenAI have the API key in environment
-if settings.GOOGLE_API_KEY:
-    os.environ["GOOGLE_API_KEY"] = settings.GOOGLE_API_KEY
+# Keep the mock tooling switch working without real cluster access.
 if settings.MOCK_KUBECTL:
     os.environ["MOCK_KUBECTL"] = "true"
 
@@ -54,10 +58,17 @@ async def run_agent_task(ctx, incident_id: str):
     )
 
     final_state = {}
-    
-    # Run the graph in a threadpool so it doesn't block the ARQ event loop
-    # (since our graph nodes are currently synchronous)
+
+    # One resolver per run: step configs + credentials read from the DB once,
+    # then made available to every node via get_llm().
+    resolver_token = None
+
     try:
+        resolver = await LlmResolver.load()
+        resolver_token = set_resolver(resolver)
+
+        # Run the graph in a threadpool so it doesn't block the ARQ event loop
+        # (since our graph nodes are currently synchronous)
         async for chunk in agent_graph.astream(initial_state, stream_mode="updates"):
 
             for node_name, node_output in chunk.items():
@@ -101,26 +112,41 @@ async def run_agent_task(ctx, incident_id: str):
             }, default=str)
         )
 
+    except LlmConfigError as exc:
+        # Config problem (missing/unknown provider credential) — message is
+        # user-fixable, surface it verbatim to the dashboard.
+        print(f"Config error processing incident {incident_id}: {exc}")
+        await _fail_incident(ctx, channel, incident_id, error=str(exc))
+        raise
+
     except Exception as exc:
-        print(f"Error processing incident {incident_id}: {exc}")
-        async with async_session_factory() as db:
-            await db.execute(
-                update(Incident)
-                .where(Incident.id == incident_id)
-                .values(status=IncidentStatus.FAILED)
-            )
-            await db.commit()
+        error = friendly_error(exc)
+        print(f"Error processing incident {incident_id}: {error}")
+        await _fail_incident(ctx, channel, incident_id, error=error)
+        raise
+
+    finally:
+        if resolver_token is not None:
+            reset_resolver(resolver_token)
 
 
-        await ctx["redis"].publish(
-            channel,
-            json.dumps({
-                "type": "incident_failed",
-                "status": "FAILED",
-                "error": str(exc)
-            })
+async def _fail_incident(ctx, channel: str, incident_id: str, error: str) -> None:
+    async with async_session_factory() as db:
+        await db.execute(
+            update(Incident)
+            .where(Incident.id == incident_id)
+            .values(status=IncidentStatus.FAILED)
         )
-        raise exc
+        await db.commit()
+
+    await ctx["redis"].publish(
+        channel,
+        json.dumps({
+            "type": "incident_failed",
+            "status": "FAILED",
+            "error": error
+        })
+    )
 
 
 
