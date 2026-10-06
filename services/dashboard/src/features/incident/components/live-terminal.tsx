@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { StepStatus } from '../../../shared/types/incident'
 import type { LiveStep } from '../store/incident-live-store'
 import { StepOutput } from './step-output'
+import { Badge } from '@/components/ui/badge'
 
 const VERB: Record<StepStatus, string> = {
   RUNNING: 'Running',
@@ -74,13 +75,13 @@ export function LiveTerminal({ steps, live = false }: { steps: LiveStep[]; live?
   }
 
   return (
-    <div className="overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-xs">
-      <div className="flex items-center justify-between border-b border-neutral-100 bg-neutral-50/60 px-5 py-3.5">
+    <div className="overflow-hidden rounded-xl border bg-card shadow-xs">
+      <div className="flex items-center justify-between border-b bg-muted/40 px-5 py-3.5">
         <div className="flex items-center gap-2">
           <h2 className="text-sm font-semibold text-neutral-800">Agent Activity Timeline</h2>
-          <span className="rounded-full bg-neutral-200/80 px-2 py-0.5 text-xs font-medium text-neutral-600">
+          <Badge variant="outline" className="bg-background/70">
             {steps.length} {steps.length === 1 ? 'step' : 'steps'}
-          </span>
+          </Badge>
         </div>
       </div>
 
