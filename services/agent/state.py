@@ -1,6 +1,5 @@
 from enum import Enum
-from pydantic import BaseModel, Field
-from typing import TypedDict, Dict, Any, Optional
+from typing import TypedDict, Dict, Any, List, Optional
 
 class Severity(str, Enum):
     P1 = "P1"
@@ -16,7 +15,16 @@ class AgentState(TypedDict):
     issue_type: str
     summary: str
     proposed_action: str
-    context: Dict[str, Any]
-    context_summary: str
-    context_error: Optional[str]
 
+    # fetch_logs node
+    logs: Dict[str, Any]
+    logs_summary: str
+    # Only consulted when runbooks exist in the DB:
+    runbooks_available: bool
+    runbooks_needed: bool
+
+    # refer_runbooks node (only runs when runbooks_needed is True)
+    runbooks_summary: str
+
+    # recommended_steps node (final)
+    recommended_steps: Optional[List[str]]

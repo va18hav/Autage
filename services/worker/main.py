@@ -75,10 +75,9 @@ async def run_agent_task(ctx, incident_id: str):
                     )
                 )
 
-        # Recommended steps come from the LLM's context summary, not the raw
-        # routing action (proposed_action) produced by the router nodes.
-        context_summary = final_state.get("context_summary") or {}
-        recommended = context_summary.get("recommended_next_steps")
+        # Final recommended steps come from the dedicated node (list of steps);
+        # published and persisted so the dashboard renders the numbered list.
+        recommended = final_state.get("recommended_steps")
 
         async with async_session_factory() as db:
             await db.execute(

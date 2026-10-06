@@ -6,6 +6,11 @@ export const queryKeys = {
     lists: () => [...queryKeys.incidents.all, 'list'] as const,
     detail: (id: string) => [...queryKeys.incidents.all, 'detail', id] as const,
   },
+  runbooks: {
+    all: ['runbooks'] as const,
+    lists: () => [...queryKeys.runbooks.all, 'list'] as const,
+    detail: (id: string) => [...queryKeys.runbooks.all, 'detail', id] as const,
+  },
 }
 
 export const queryClient = new QueryClient({

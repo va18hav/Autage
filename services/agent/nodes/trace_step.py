@@ -1,17 +1,3 @@
-"""Decorator that persists every agent node run as an IncidentStep.
-
-Replaces the boilerplate that was previously copy-pasted into each node:
-    1. insert IncidentStep (RUNNING) + commit
-    2. run the node body
-    3. update step -> COMPLETED with output_data
-    4. on any exception: update step -> FAILED with error_message + re-raise
-
-Usage:
-    @traced_step("triage")
-    async def process_alert(state: AgentState) -> Dict[str, Any]:
-        ...
-"""
-
 import functools
 import inspect
 import json

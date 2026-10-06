@@ -15,8 +15,11 @@ const LABELS: Record<string, string> = {
   route_p1: 'Route P1 Critical',
   route_p2: 'Route P2 Standard',
   route_p3: 'Route P3 Low Severity',
-  context_gathering: 'Context Gathering & Diagnostics',
-  gather_context: 'Context Gathering & Diagnostics',
+  fetch_logs: 'Fetch Logs (kubectl)',
+  context_gathering: 'Context Gathering & Diagnostics', // legacy rows
+  gather_context: 'Context Gathering & Diagnostics', // legacy rows
+  refer_runbooks: 'Refer Runbooks',
+  recommended_steps: 'Recommended Steps',
 }
 
 function label(name: string) {

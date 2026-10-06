@@ -5,11 +5,16 @@ import type { LiveStep } from '../store/incident-live-store'
  * Rich renderer for a single node's output — shared by the live terminal and
  * the dashboard drawer timeline so both views display step data identically.
  * Memoized: incident refetches re-render parents without reworking every step.
+ * Renders both the new step payloads (fetch_logs / refer_runbooks /
+ * recommended_steps) and legacy rows stored under the old context_* schema.
  */
 export const StepOutput = memo(function StepOutput({ step }: { step: LiveStep }) {
   const data = (step.output_data ?? {}) as Record<string, any>
   const isTriage = step.name === 'triage' || step.name === 'process_alert'
-  const isContext = step.name === 'context_gathering' || step.name === 'gather_context'
+  const isLogs =
+    step.name === 'fetch_logs' || step.name === 'context_gathering' || step.name === 'gather_context'
+  const isRunbooks = step.name === 'refer_runbooks'
+  const isRecommended = step.name === 'recommended_steps'
   const isRoute = step.name.startsWith('route_')
 
   if (isTriage && (data.summary || data.description)) {
@@ -34,51 +39,70 @@ export const StepOutput = memo(function StepOutput({ step }: { step: LiveStep })
     )
   }
 
-  if (isContext) {
-    const summary = data.context_summary ?? {}
-    const context = data.context ?? {}
-    const toolsExecuted = Object.keys(context)
+  if (isLogs) {
+    const logsSummary = typeof data.logs_summary === 'string' ? data.logs_summary : null
+    const logs: Record<string, any> = data.logs ?? {}
+    const toolsExecuted = Object.keys(logs)
+    const legacySummary = data.context_summary // legacy rows: structured ContextSummary object
 
     return (
       <div className="space-y-3">
-        {summary.root_cause_hypothesis && (
-          <div className="rounded-lg border border-amber-200/70 bg-amber-50/50 p-3.5 text-sm">
-            <h4 className="text-xs font-semibold uppercase tracking-wider text-amber-900/70 mb-1">
-              Root Cause Hypothesis
-            </h4>
-            <p className="font-medium text-amber-950 leading-relaxed">
-              {summary.root_cause_hypothesis}
-            </p>
-          </div>
+        {/* Legacy stored rows (context_summary object + hypothesis/signals) */}
+        {legacySummary && typeof legacySummary === 'object' && (
+          <>
+            {legacySummary.root_cause_hypothesis && (
+              <div className="rounded-lg border border-amber-200/70 bg-amber-50/50 p-3.5 text-sm">
+                <h4 className="text-xs font-semibold uppercase tracking-wider text-amber-900/70 mb-1">
+                  Root Cause Hypothesis
+                </h4>
+                <p className="font-medium text-amber-950 leading-relaxed">
+                  {legacySummary.root_cause_hypothesis}
+                </p>
+              </div>
+            )}
+            {Array.isArray(legacySummary.key_signals) && legacySummary.key_signals.length > 0 && (
+              <div className="rounded-lg border border-neutral-200/80 bg-white p-3.5">
+                <h4 className="text-xs font-semibold uppercase tracking-wider text-neutral-400 mb-2">
+                  Key Diagnostic Signals
+                </h4>
+                <ul className="space-y-1.5">
+                  {legacySummary.key_signals.map((sig: string, idx: number) => (
+                    <li key={idx} className="flex items-start gap-2 text-xs text-neutral-700">
+                      <span className="text-emerald-500 font-bold">•</span>
+                      <span>{sig}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {Array.isArray(legacySummary.affected_pods) && legacySummary.affected_pods.length > 0 && (
+              <div className="flex items-center gap-2 flex-wrap text-xs">
+                <span className="text-neutral-500 font-medium">Affected pods:</span>
+                {legacySummary.affected_pods.map((pod: string, idx: number) => (
+                  <span
+                    key={idx}
+                    className="font-mono bg-neutral-200/70 text-neutral-800 px-2 py-0.5 rounded text-[11px]"
+                  >
+                    {pod}
+                  </span>
+                ))}
+              </div>
+            )}
+          </>
         )}
 
-        {summary.key_signals && Array.isArray(summary.key_signals) && summary.key_signals.length > 0 && (
-          <div className="rounded-lg border border-neutral-200/80 bg-white p-3.5">
-            <h4 className="text-xs font-semibold uppercase tracking-wider text-neutral-400 mb-2">
-              Key Diagnostic Signals
+        {/* New fetch_logs payload: plain-text summary (+ runbooks request flag) */}
+        {logsSummary && (
+          <div className="rounded-lg border border-blue-200/70 bg-blue-50/40 p-3.5 text-sm">
+            <h4 className="text-xs font-semibold uppercase tracking-wider text-blue-800/70 mb-1.5">
+              Logs Summary
             </h4>
-            <ul className="space-y-1.5">
-              {summary.key_signals.map((sig: string, idx: number) => (
-                <li key={idx} className="flex items-start gap-2 text-xs text-neutral-700">
-                  <span className="text-emerald-500 font-bold">•</span>
-                  <span>{sig}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-
-        {summary.affected_pods && Array.isArray(summary.affected_pods) && summary.affected_pods.length > 0 && (
-          <div className="flex items-center gap-2 flex-wrap text-xs">
-            <span className="text-neutral-500 font-medium">Affected pods:</span>
-            {summary.affected_pods.map((pod: string, idx: number) => (
-              <span
-                key={idx}
-                className="font-mono bg-neutral-200/70 text-neutral-800 px-2 py-0.5 rounded text-[11px]"
-              >
-                {pod}
-              </span>
-            ))}
+            <p className="leading-relaxed text-neutral-800">{logsSummary}</p>
+            {data.runbooks_needed === true && (
+              <p className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-amber-100/70 px-2.5 py-0.5 text-xs font-medium text-amber-800">
+                Runbooks requested for this incident
+              </p>
+            )}
           </div>
         )}
 
@@ -86,7 +110,7 @@ export const StepOutput = memo(function StepOutput({ step }: { step: LiveStep })
         {toolsExecuted.length > 0 && (
           <div
             className="rounded-lg border border-neutral-200/80 bg-white p-3"
-            // Largest subtree of a context step — isolate its layout from the rest
+            // Largest subtree of a logs step — isolate its layout from the rest
             style={{ contentVisibility: 'auto', containIntrinsicSize: 'auto 240px' }}
           >
             <h4 className="text-xs font-semibold uppercase tracking-wider text-neutral-400 mb-2">
@@ -94,7 +118,7 @@ export const StepOutput = memo(function StepOutput({ step }: { step: LiveStep })
             </h4>
             <div className="space-y-2">
               {toolsExecuted.map((cmd) => {
-                const res = context[cmd]
+                const res = logs[cmd]
                 return (
                   <div key={cmd} className="rounded bg-neutral-900 text-neutral-100 p-2.5 text-xs font-mono overflow-x-auto">
                     <div className="flex items-center justify-between text-neutral-400 pb-1 border-b border-neutral-800 mb-1.5">
@@ -117,6 +141,39 @@ export const StepOutput = memo(function StepOutput({ step }: { step: LiveStep })
             </div>
           </div>
         )}
+      </div>
+    )
+  }
+
+  if (isRunbooks) {
+    const runbooks = typeof data.runbooks_summary === 'string' ? data.runbooks_summary : null
+    if (runbooks) {
+      return (
+        <div className="rounded-lg border border-violet-200/70 bg-violet-50/40 p-3.5 text-sm">
+          <h4 className="text-xs font-semibold uppercase tracking-wider text-violet-800/70 mb-1.5">
+            Runbook Findings
+          </h4>
+          <p className="leading-relaxed text-neutral-800">{runbooks}</p>
+        </div>
+      )
+    }
+    return null
+  }
+
+  if (isRecommended && Array.isArray(data.recommended_steps) && data.recommended_steps.length > 0) {
+    return (
+      <div className="rounded-lg border border-emerald-200/70 bg-emerald-50/50 p-3.5">
+        <h4 className="text-xs font-semibold uppercase tracking-wider text-emerald-800/70 mb-2">
+          Recommended Steps
+        </h4>
+        <ol className="space-y-1.5">
+          {data.recommended_steps.map((step: string, idx: number) => (
+            <li key={idx} className="flex gap-2 text-xs leading-relaxed text-neutral-700">
+              <span className="shrink-0 font-medium text-neutral-400">{idx + 1}.</span>
+              {step}
+            </li>
+          ))}
+        </ol>
       </div>
     )
   }

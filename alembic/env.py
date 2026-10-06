@@ -7,6 +7,7 @@ from alembic import context
 
 from services.db.models.base import Base
 from services.db.models.incident import Incident, IncidentStep
+from services.db.models.runbooks import Runbook, RunbookSection
 from services.config import settings
 
 # this is the Alembic Config object, which provides

@@ -13,3 +13,6 @@ wheels/
 .venv
 
 .agents/
+
+# Mock runbooks (local test data — seeded into the DB from the app)
+runbooks/

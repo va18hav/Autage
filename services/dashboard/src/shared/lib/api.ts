@@ -1,4 +1,5 @@
 import type { IncidentDetail, IncidentSummary, SseEvent } from '../types/incident'
+import type { RunbookCreate, RunbookDetail, RunbookSummary } from '../types/runbook'
 
 const BASE_URL = '/api'
 
@@ -34,6 +35,20 @@ export const incidentApi = {
   detail: (id: string) => request<IncidentDetail>(`/incidents/${id}`),
 
   delete: (id: string) => request<void>(`/incidents/${id}`, { method: 'DELETE' }),
+}
+
+export const runbookApi = {
+  create: (payload: RunbookCreate) =>
+    request<RunbookDetail>('/runbooks', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  list: () => request<RunbookSummary[]>('/runbooks'),
+
+  detail: (id: string) => request<RunbookDetail>(`/runbooks/${id}`),
+
+  delete: (id: string) => request<void>(`/runbooks/${id}`, { method: 'DELETE' }),
 }
 
 export function streamIncident(

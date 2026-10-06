@@ -44,7 +44,8 @@ const INITIAL = {
 // so SSE updates and hydrated rows are treated as the same step.
 const CANONICAL_NAMES: Record<string, string> = {
   process_alert: 'triage',
-  gather_context: 'context_gathering',
+  gather_context: 'fetch_logs',
+  context_gathering: 'fetch_logs',
 }
 
 const canonicalName = (name: string) => CANONICAL_NAMES[name] ?? name
