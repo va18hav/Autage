@@ -56,10 +56,12 @@ export function IncidentLivePage() {
 
   const status = useIncidentLiveStore((s) => s.status)
   const steps = useIncidentLiveStore((s) => s.steps)
+  const isComplete = useIncidentLiveStore((s) => s.isComplete)
   const contextSummary = useIncidentLiveStore((s) => s.contextSummary)
-  const recommendedNextSteps = useIncidentLiveStore((s) => s.recommendedNextSteps)
   const errorMessage = useIncidentLiveStore((s) => s.errorMessage)
   const incidentTitle = useIncidentLiveStore((s) => s.incidentTitle)
+
+  const live = !isComplete && status !== 'COMPLETED' && status !== 'FAILED'
 
   return (
     <div className="space-y-6">
@@ -68,36 +70,20 @@ export function IncidentLivePage() {
         status={status as IncidentStatus}
       />
 
-      <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
-        <LiveTerminal steps={steps} />
-        <aside className="space-y-6">
+      {/* Steps get the full content width on their own */}
+      <LiveTerminal steps={steps} live={live} />
+
+      {/* Findings below the step timeline */}
+      {(contextSummary || errorMessage) && (
+        <div className="grid gap-6 md:grid-cols-2">
           {contextSummary && <ContextSummaryCard data={contextSummary} />}
-          {recommendedNextSteps && recommendedNextSteps.length > 0 && (
-            <RecommendedNextStepsCard steps={recommendedNextSteps} />
-          )}
           {errorMessage && (
-            <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 md:col-span-2">
               {errorMessage}
             </p>
           )}
-        </aside>
-      </div>
-    </div>
-  )
-}
-
-function RecommendedNextStepsCard({ steps }: { steps: string[] }) {
-  return (
-    <div className="rounded-xl border border-neutral-200 bg-white p-5">
-      <h3 className="text-sm font-medium text-neutral-500">Recommended steps</h3>
-      <ol className="mt-2 space-y-1.5">
-        {steps.map((step, i) => (
-          <li key={i} className="flex gap-2 text-sm leading-relaxed text-neutral-800">
-            <span className="shrink-0 font-medium text-neutral-400">{i + 1}.</span>
-            {step}
-          </li>
-        ))}
-      </ol>
+        </div>
+      )}
     </div>
   )
 }

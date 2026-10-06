@@ -31,3 +31,23 @@
     background: transparent;
   }
 }
+
+@layer utilities {
+  /* Composited step entry: opacity + transform only (GPU), ends back on
+     translateZ(0) so the layer promotion from the inline style is preserved
+     after the animation finishes. */
+  .animate-step-in {
+    animation: step-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  @keyframes step-in {
+    from {
+      opacity: 0;
+      transform: translateY(6px) translateZ(0);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) translateZ(0);
+    }
+  }
+}

@@ -56,7 +56,7 @@ function SeverityBadge({ severity }: { severity?: string }) {
   )
 }
 
-export function LiveTerminal({ steps }: { steps: LiveStep[] }) {
+export function LiveTerminal({ steps, live = false }: { steps: LiveStep[]; live?: boolean }) {
   // Keep track of which steps are expanded (default: all expanded)
   const [expandedSteps, setExpandedSteps] = useState<Record<string, boolean>>({})
 
@@ -99,7 +99,7 @@ export function LiveTerminal({ steps }: { steps: LiveStep[] }) {
             return (
               <li
                 key={step.id}
-                className="transition-colors hover:bg-neutral-50/30"
+                className="animate-step-in transition-colors hover:bg-neutral-50/30"
                 style={{
                   contentVisibility: 'auto',
                   containIntrinsicSize: 'auto 240px',
@@ -196,6 +196,26 @@ export function LiveTerminal({ steps }: { steps: LiveStep[] }) {
               </li>
             )
           })}
+
+          {/* In-flight placeholder: the agent is working on the next step */}
+          {live && (
+            <li className="animate-step-in px-5 py-5">
+              <div className="flex items-center gap-3">
+                <span className="relative flex size-2.5">
+                  <span className="absolute inline-flex size-full animate-ping rounded-full bg-amber-400 opacity-75" />
+                  <span className="relative inline-flex size-2.5 rounded-full bg-amber-500" />
+                </span>
+                <span className="text-sm font-medium text-neutral-700">
+                  Agent is working on the next step…
+                </span>
+              </div>
+              <div className="mt-4 space-y-2.5 pl-5.5">
+                <div className="h-3 animate-pulse rounded bg-neutral-200/80" style={{ width: '70%' }} />
+                <div className="h-3 animate-pulse rounded bg-neutral-200/60" style={{ width: '55%', animationDelay: '150ms' }} />
+                <div className="h-3 animate-pulse rounded bg-neutral-200/40" style={{ width: '40%', animationDelay: '300ms' }} />
+              </div>
+            </li>
+          )}
         </ul>
       )}
     </div>

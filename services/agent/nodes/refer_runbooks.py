@@ -2,6 +2,7 @@ from typing import Dict, Any, List, Optional
 from pydantic import BaseModel, Field
 from langchain_google_genai import ChatGoogleGenerativeAI
 
+from services.agent.llm_text import ai_text
 from services.agent.state import AgentState
 from services.agent.prompts.fetch_logs import build_runbook_selection_prompt
 from services.agent.nodes.trace_step import traced_step
@@ -93,6 +94,6 @@ async def refer_runbooks(state: AgentState) -> Dict[str, Any]:
 - Do not use markdown headings or bullet lists
 """
 
-    runbooks_summary: str = (await llm.ainvoke(summary_prompt)).content.strip()
+    runbooks_summary: str = ai_text(await llm.ainvoke(summary_prompt))
 
     return {"runbooks_summary": runbooks_summary}

@@ -128,7 +128,7 @@ def build_runbook_selection_prompt(
     inventory_lines = []
     for rb in runbooks:
         service = rb.get("service") or "-"
-        inventory_lines.append(f"### Runbook: \"{rb['title']}\" (service: {service})")
+        inventory_lines.append(f"### Runbook: \"{rb['runbook_title']}\" (service: {service})")
         for sec in rb["sections"]:
             inventory_lines.append(f"  - [{sec['order_index']}] {sec['heading']}")
         if not rb["sections"]:

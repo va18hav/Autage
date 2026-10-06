@@ -36,7 +36,8 @@ class IncidentDetailResponse(BaseModel):
     status: IncidentStatus
     fingerprint: Optional[str] = None
     raw_alert: dict[str, Any]
-    recommended_steps: Optional[dict[str, Any] | str] = None
+    # historical shapes: dict (seed), str (legacy proposed_action), list[str] (current recommended_steps node)
+    recommended_steps: Optional[dict[str, Any] | str | list[str]] = None
     steps: List[IncidentStepResponse] = []
     created_at: datetime
     updated_at: datetime

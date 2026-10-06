@@ -4,6 +4,7 @@ from pydantic import BaseModel, Field
 from langchain_google_genai import ChatGoogleGenerativeAI
 from sqlalchemy import func, select
 
+from services.agent.llm_text import ai_text
 from services.agent.state import AgentState
 from services.agent.prompts.fetch_logs import build_plan_prompt, build_summary_prompt
 from services.agent.nodes.trace_step import traced_step
@@ -150,7 +151,7 @@ async def fetch_logs(state: AgentState) -> Dict[str, Any]:
     )
 
     # ── Step 3: Ask LLM to summarize all outputs (plain text — keep it simple) ──
-    logs_summary: str = (await llm.ainvoke(summary_prompt)).content.strip()
+    logs_summary: str = ai_text(await llm.ainvoke(summary_prompt))
 
     return {
         "logs": logs,
