@@ -14,6 +14,7 @@ engineers concrete remediation steps — streamed live to a dashboard.
 [![Postgres](https://img.shields.io/badge/PostgreSQL-4169E1?logo=postgresql&logoColor=white)](https://www.postgresql.org)
 [![Redis](https://img.shields.io/badge/Redis-DC382D?logo=redis&logoColor=white)](https://redis.io)
 [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white)](https://react.dev)
+[![License](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](LICENSE)
 
 </div>
 
@@ -140,5 +141,7 @@ services/
 <div align="center">
 
 **Autage** — your on-call never starts from a blank terminal again.
+
+Released under the [Apache License 2.0](LICENSE).
 
 </div>

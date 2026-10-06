@@ -2,6 +2,8 @@
 name = "autage"
 version = "0.1.0"
 readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
 requires-python = ">=3.13"
 dependencies = [
     "alembic>=1.20.0",
