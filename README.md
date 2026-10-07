@@ -40,3 +40,49 @@ Each of the four stages can be routed to a different LLM provider and model (`Go
 
 ---
 
+## Local Development Setup
+
+**Requirements:** Python 3.13+, [uv](https://docs.astral.sh/uv/), Docker, Node.js 22+.
+
+```bash
+# 1. Install Python dependencies (including dev/test dependencies)
+uv sync
+
+# 2. Start PostgreSQL and Redis only
+docker compose up -d db redis
+
+# 3. Configure environment
+cp .env.example .env
+cp services/dashboard/.env.example services/dashboard/.env
+# Generate a Fernet key and set AUTAGE_SECRET_KEY in .env:
+uv run python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+
+# 4. Run database migrations
+uv run alembic upgrade head
+```
+
+Start the three processes in separate terminals:
+
+```bash
+# Terminal 1 — FastAPI server (port 8000)
+uv run uvicorn services.http.app:app --reload
+
+# Terminal 2 — ARQ background worker
+uv run arq services.worker.main.WorkerSettings
+
+# Terminal 3 — React dashboard (port 5173)
+cd services/dashboard && npm install && npm run dev
+```
+
+Open `http://localhost:5173`:
+1. Complete the one-time account registration screen.
+2. Walk through the 5-step **Onboarding** flow:
+   - **Step 1 — Alert Webhook & Secret**: Copy the dynamic webhook URL (`${VITE_API_URL}/webhooks/alert`) and generate your HMAC signing secret.
+   - **Step 2 — AI Model Providers**: Add at least one provider API key (`Google Gemini`, `OpenAI`, `Anthropic`, `OpenRouter`, or `Ollama`).
+   - **Step 3 — Pipeline Model Routing**: Assign models to each of the 4 pipeline stages.
+   - **Step 4 — Upload Runbooks**: Upload `.md` operational runbooks to be chunked and indexed.
+   - **Step 5 — Kubernetes Cluster**: Connect your cluster via API Server URL + read-only ServiceAccount token (or continue in Mock Cluster Mode).
+3. Trigger a test incident directly from the **Dashboard** (or run `uv run python scripts/send_mock_alert.py`).
+
+---
+
