@@ -98,3 +98,21 @@ cd services/dashboard && npm run lint && npm run build
 
 ---
 
+## Repository Layout
+
+```text
+services/
+├── agent/          # LangGraph state, nodes, prompts, kubectl & runbook tools, LLM registry
+├── db/             # Async SQLAlchemy 2.0 models (Incident, Runbook, Credential, User)
+├── http/           # FastAPI application, JWT cookie auth, REST & SSE endpoints
+├── secrets/        # Fernet encryption wrapper and SecretStore DAO
+├── worker/         # ARQ worker executing the LangGraph pipeline and publishing Redis events
+└── dashboard/      # React 19 + TypeScript + Tailwind v4 SPA
+tests/
+├── agent/          # Unit & integration tests for graph, llm/, nodes/, prompts/, and tools/
+├── db/             # Database session and SQLAlchemy model tests (models/)
+├── http/           # FastAPI app, JWT auth, HMAC webhook, routes/, and schemas/ tests
+├── secrets/        # Fernet crypto and SecretStore DAO tests
+└── worker/         # ARQ worker lifecycle and Redis Pub/Sub event tests
+```
+
