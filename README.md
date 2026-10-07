@@ -86,3 +86,15 @@ Open `http://localhost:5173`:
 
 ---
 
+## Running Tests & Linting
+
+```bash
+# Backend unit, API route, and LangGraph pipeline tests
+uv run pytest -v
+
+# Frontend lint & production typecheck/build
+cd services/dashboard && npm run lint && npm run build
+```
+
+---
+
