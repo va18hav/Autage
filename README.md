@@ -40,6 +40,22 @@ Each of the four stages can be routed to a different LLM provider and model (`Go
 
 ---
 
+## Quickstart (Full Stack with Docker Compose)
+
+Start PostgreSQL, Redis, FastAPI, the ARQ worker, and the React dashboard in a single command:
+
+```bash
+cp .env.example .env
+# Generate a Fernet master key and set AUTAGE_SECRET_KEY in .env:
+python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+
+docker compose up --build
+```
+
+Then open `http://localhost:5173`.
+
+---
+
 ## Local Development Setup
 
 **Requirements:** Python 3.13+, [uv](https://docs.astral.sh/uv/), Docker, Node.js 22+.
