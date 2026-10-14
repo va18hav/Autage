@@ -148,3 +148,6 @@ tests/
 └── worker/         # ARQ worker lifecycle and Redis Pub/Sub event tests
 ```
 
+## License
+
+Apache License 2.0 — see [LICENSE](LICENSE).
