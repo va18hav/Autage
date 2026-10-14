@@ -1,5 +1,17 @@
 # Autage
 
+<p align="center">
+  <img src="services/dashboard/public/autage-logo.png" alt="Autage Logo" width="72" />
+</p>
+
+<p align="center">
+  <strong>Autonomous Agentic SRE Copilot for Kubernetes Incident Triage & Remediation</strong>
+</p>
+
+<p align="center">
+  <img src="docs/assets/demo-preview.jpg" alt="Autage Live Incident Triage & Remediation Preview" width="860" />
+</p>
+
 Autage is a self-hosted SRE agent that receives monitoring alerts over webhooks, executes read-only Kubernetes diagnostics (`kubectl`), cross-references operational runbooks, and streams step-by-step triage and remediation plans to a real-time web dashboard.
 
 ## Architecture
