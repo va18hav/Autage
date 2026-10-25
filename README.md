@@ -9,12 +9,11 @@
 </p>
 
 <p align="center">
-  <img src="docs/assets/demo-preview.jpg" alt="Autage Live Incident Triage & Remediation Preview" width="860" />
+  <img src="docs/assets/demo.gif" alt="Autage Live Incident Triage & Remediation — demo" width="800" />
 </p>
 
-Autage is a self-hosted SRE agent that receives monitoring alerts over webhooks, executes read-only Kubernetes diagnostics (`kubectl`), cross-references operational runbooks, and streams step-by-step triage and remediation plans to a real-time web dashboard.
 
-> **Demo Video:** [Watch the launch overview (`docs/assets/demo.mp4`)](docs/assets/demo.mp4)
+Autage is a self-hosted SRE agent that receives monitoring alerts over webhooks, executes read-only Kubernetes diagnostics (`kubectl`), cross-references operational runbooks, and streams step-by-step triage and remediation plans to a real-time web dashboard.
 
 ---
 
@@ -53,6 +52,45 @@ Each of the four stages can be routed to a different LLM provider and model (`Go
 - **Active-Incident Deduplication**: Computes SHA-256 payload fingerprints and deduplicates against currently active (`PENDING`/`TRIAGING`) incidents while allowing recurring alerts after resolution.
 - **Client-Side Runbook Chunker**: Parses Markdown runbooks (and YAML frontmatter) into discrete, ordered sections with token estimates before indexing.
 - **Single-User Auth**: Initial setup flow creates the administrator account (`bcrypt` password hashing + `HttpOnly` JWT session cookies) and protects all dashboard and API routes.
+
+---
+
+## Design Decisions
+
+**Read-only cluster access is enforced by function tools, not by prompts.**
+The agent never assembles shell commands — it calls fixed Python functions such as
+`get_pod_logs()`, `describe_pod()`, `get_events()`, and `get_deployment()`, where the
+LLM only supplies parameters (namespace, pod name, tail count). Since no mutating
+executor exists, *no prompt injection or hallucination can reconfigure, delete, or
+scale anything in the cluster*. When the host has no `kubectl` binary, the same
+read-only verbs fall back to direct HTTPS calls against the Kubernetes API Server.
+
+**Alert payloads are stored raw and parsed by the LLM — no per-provider adapters.**
+Datadog, Prometheus/Alertmanager, Grafana, Sentry, and PagerDuty each have a
+different payload shape. Rather than maintaining one schema adapter per tool (which
+grows linearly and rots), the webhook validates the HMAC signature and stores the
+JSON as-is; the triage stage — routed to whichever model is strongest at extraction
+— normalizes it. Adding "support" for a new monitoring tool is therefore
+a zero-code setting.
+
+**Runbook lookup is two-pass and token-bounded.**
+Pass 1 fetches only runbook titles plus section headings; the LLM declares *which
+specific sections* to open. Pass 2 loads just those section chunks. This keeps the
+context window proportional to relevance rather than to total documentation size,
+which matters when runbooks are 30+ pages of Markdown.
+
+**Deduplication is idempotent against *active* incidents only.**
+Ingest computes a SHA-256 fingerprint over the canonically-sorted raw payload and
+drops duplicates only while an incident with the same fingerprint is still
+`PENDING`/`TRIAGING`. Flaky alerting storms — the classic 30-acks-per-minute pager
+event — produce one agent run, while a legitimately recurring alert *after
+resolution* still creates a fresh incident.
+
+**Model routing is per pipeline stage, not per app.**
+A P3 alert that only needs triage may run on a local Ollama model, while the
+remediation synthesis for a P1 runs on the strongest frontier model. The routing
+table lives in the Settings UI (one provider per stage), so each deployment can
+trade cost, latency, and privacy to its own preference.
 
 ---
 
