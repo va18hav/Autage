@@ -32,8 +32,16 @@ def test_kubernetes_and_credential_payload_schemas():
     k8s = KubernetesConfigIn(
         server_url="https://kubernetes.default.svc:6443",
         token="eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9",
+        ca_cert="-----BEGIN CERTIFICATE-----\nMiIC\n-----END CERTIFICATE-----\n",
     )
     assert k8s.server_url.startswith("https://")
+
+    # ca_cert is compulsory — a payload without it fails validation
+    with pytest.raises(ValidationError):
+        KubernetesConfigIn(
+            server_url="https://kubernetes.default.svc:6443",
+            token="eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9",
+        )
 
     cred = CredentialPayloadIn(fields={"api_key": "sk-123"})
     assert cred.fields["api_key"] == "sk-123"

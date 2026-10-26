@@ -79,10 +79,12 @@ export interface KubernetesConfig {
   configured: boolean
   server_url: string | null
   token_preview: string | null
+  ca_configured: boolean
   updated_at: string | null
 }
 
 export interface KubernetesConfigPayload {
   server_url: string
   token: string
+  ca_cert: string
 }

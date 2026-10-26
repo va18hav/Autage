@@ -105,10 +105,14 @@ class WebhookSecretOut(BaseModel):
 class KubernetesConfigIn(BaseModel):
     server_url: str = Field(..., min_length=8, max_length=512)
     token: str = Field(..., min_length=10, max_length=8192)
+    # The cluster's CA certificate (PEM). Compulsory: TLS verification of the
+    # API Server is always on, and there is no skip-verify fallback.
+    ca_cert: str = Field(..., min_length=50, max_length=16384)
 
 
 class KubernetesConfigOut(BaseModel):
     configured: bool
     server_url: Optional[str] = None
     token_preview: Optional[str] = None
+    ca_configured: bool = False
     updated_at: Optional[datetime] = None

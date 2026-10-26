@@ -19,7 +19,6 @@ from services.agent.llm.registry import (
     missing_credential_fields,
 )
 from services.agent.llm.resolver import DEFAULT_STEP_MODELS, STEP_LABELS
-from services.config import settings
 from services.db.database import get_db_session
 from services.db.models.credentials import Credential, LlmStepConfig
 from services.http.schemas.settings import (
@@ -449,14 +448,29 @@ def _mask_k8s_token(token: str) -> str:
     return "••••"
 
 
-def _probe_k8s_api(server_url: str, token: str) -> TestCredentialResponse:
+def _probe_k8s_api(server_url: str, token: str, ca_cert: str) -> TestCredentialResponse:
     base = server_url.strip().rstrip("/")
-    if not (base.startswith("https://") or base.startswith("http://")):
+    if not base.startswith("https://"):
         return TestCredentialResponse(
             ok=False,
             provider="kubernetes",
             model=None,
-            message="Cluster API URL must start with https:// or http://",
+            message=(
+                "Cluster API URL must use https:// — TLS verification of the "
+                "connection is mandatory and cannot be disabled."
+            ),
+        )
+    ca_cert = ca_cert.strip()
+    if "-----BEGIN CERTIFICATE-----" not in ca_cert:
+        return TestCredentialResponse(
+            ok=False,
+            provider="kubernetes",
+            model=base,
+            message=(
+                "The cluster CA certificate is missing or malformed — it must be "
+                "the PEM block starting with '-----BEGIN CERTIFICATE-----' "
+                "(copy `certificate-authority-data` decoded from your kubeconfig)."
+            ),
         )
 
     url = f"{base}/api/v1/namespaces?limit=1"
@@ -468,11 +482,10 @@ def _probe_k8s_api(server_url: str, token: str) -> TestCredentialResponse:
         },
         method="GET",
     )
-    ctx = (
-        ssl.create_default_context()
-        if settings.K8S_VERIFY_SSL
-        else ssl._create_unverified_context()
-    )
+    # TLS is always verified against the cluster's own CA certificate — the
+    # python equivalent of `curl --cacert <kind_ca.pem>`. There is no
+    # skip-verification path.
+    ctx = ssl.create_default_context(cadata=ca_cert)
 
     try:
         with urllib.request.urlopen(req, context=ctx, timeout=8) as resp:
@@ -482,7 +495,10 @@ def _probe_k8s_api(server_url: str, token: str) -> TestCredentialResponse:
                     ok=True,
                     provider="kubernetes",
                     model=base,
-                    message="Connected to Kubernetes API server and verified read access.",
+                    message=(
+                        "Connected to Kubernetes API server with verified TLS "
+                        "certificate; read access confirmed."
+                    ),
                 )
             return TestCredentialResponse(
                 ok=True,
@@ -496,7 +512,12 @@ def _probe_k8s_api(server_url: str, token: str) -> TestCredentialResponse:
                 ok=False,
                 provider="kubernetes",
                 model=base,
-                message=f"Cluster rejected the ServiceAccount token (HTTP {exc.code}). Ensure the 'view' ClusterRoleBinding is attached.",
+                message=(
+                    f"Cluster rejected the ServiceAccount token (HTTP {exc.code}). "
+                    "Re-paste the token exactly as printed — it is one long JWT "
+                    "(starts with 'eyJ', no quotes, no spaces). If the token expired, "
+                    "create a new one with: kubectl create token <sa-name> -n default"
+                ),
             )
         return TestCredentialResponse(
             ok=False,
@@ -505,11 +526,31 @@ def _probe_k8s_api(server_url: str, token: str) -> TestCredentialResponse:
             message=f"Kubernetes API returned HTTP {exc.code}.",
         )
     except Exception as exc:
+        err_name = exc.__class__.__name__
+        if isinstance(exc, ssl.SSLError) or "certificate" in str(exc).lower():
+            message = (
+                "TLS verification failed — the server's certificate was not signed "
+                "by the CA certificate you provided. Check that you copied the "
+                "CA of THIS cluster (each cluster has its own)."
+            )
+        else:
+            message = f"Could not reach cluster at {base} ({err_name})."
+            try:
+                from urllib.parse import urlparse
+
+                if (urlparse(base).hostname or "") in ("127.0.0.1", "localhost", "0.0.0.0", "0.0.0.0:6443"):
+                    message += (
+                        " If Autage itself runs in Docker (docker compose), the cluster is not "
+                        "reachable at that address from inside the containers — use "
+                        "https://host.docker.internal:<port> instead."
+                    )
+            except Exception:
+                pass
         return TestCredentialResponse(
             ok=False,
             provider="kubernetes",
             model=base,
-            message=f"Could not reach cluster at {base} ({exc.__class__.__name__}).",
+            message=message,
         )
 
 
@@ -525,16 +566,19 @@ async def get_kubernetes_config(db: AsyncSession = Depends(get_db_session)):
             configured=False,
             server_url=None,
             token_preview=None,
+            ca_configured=False,
             updated_at=None,
         )
 
     payload = await SecretStore.fetch_payload(KUBERNETES_PURPOSE) or {}
     server_url = payload.get("server_url")
     token = payload.get("token") or ""
+    ca_cert = payload.get("ca_cert") or ""
     return KubernetesConfigOut(
-        configured=bool(server_url and token),
+        configured=bool(server_url and token and ca_cert),
         server_url=server_url,
         token_preview=_mask_k8s_token(token) if token else row.preview,
+        ca_configured=bool("-----BEGIN CERTIFICATE-----" in ca_cert),
         updated_at=row.updated_at,
     )
 
@@ -542,27 +586,41 @@ async def get_kubernetes_config(db: AsyncSession = Depends(get_db_session)):
 @router.put(
     "/kubernetes",
     response_model=KubernetesConfigOut,
-    summary="Save or update the Kubernetes cluster API URL and ServiceAccount token",
+    summary="Save or update the Kubernetes cluster connection (API URL, read-only ServiceAccount token, CA certificate)",
 )
 async def save_kubernetes_config(payload: KubernetesConfigIn):
     server_url = payload.server_url.strip().rstrip("/")
     token = payload.token.strip()
-    if not (server_url.startswith("https://") or server_url.startswith("http://")):
+    ca_cert = payload.ca_cert.strip()
+    if not server_url.startswith("https://"):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Cluster API URL must start with https:// or http://",
+            detail=(
+                "Cluster API URL must use https:// — TLS verification of the "
+                "connection is mandatory and cannot be disabled."
+            ),
+        )
+    if "-----BEGIN CERTIFICATE-----" not in ca_cert:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                "The cluster CA certificate is required and must be a PEM block "
+                "starting with '-----BEGIN CERTIFICATE-----'."
+            ),
         )
 
     token_preview = _mask_k8s_token(token)
+    ca_preview = "CA certificate stored"
     row = await SecretStore.save(
         KUBERNETES_PURPOSE,
-        {"server_url": server_url, "token": token},
-        preview=f"{server_url} ({token_preview})",
+        {"server_url": server_url, "token": token, "ca_cert": ca_cert},
+        preview=f"{server_url} ({token_preview}) — {ca_preview}",
     )
     return KubernetesConfigOut(
         configured=True,
         server_url=server_url,
         token_preview=token_preview,
+        ca_configured=True,
         updated_at=row.updated_at,
     )
 
@@ -591,4 +649,5 @@ async def test_kubernetes_config(payload: KubernetesConfigIn):
         _probe_k8s_api,
         payload.server_url,
         payload.token,
+        payload.ca_cert,
     )

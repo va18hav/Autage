@@ -10,7 +10,6 @@ class Settings(BaseSettings):
     )
 
     GOOGLE_API_KEY: str = ""
-    MOCK_KUBECTL: bool = True
     REDIS_URL: str = "redis://localhost:6379/0"
     DB_HOST: str = "localhost"
     DB_PORT: int = 5432
@@ -30,9 +29,6 @@ class Settings(BaseSettings):
 
     # Comma-separated list of allowed CORS origins for the web dashboard
     CORS_ORIGINS: str = "http://localhost:5173,http://127.0.0.1:5173"
-
-    # Verify Kubernetes API Server TLS certificates (set True in production with valid CA certs)
-    K8S_VERIFY_SSL: bool = False
 
     @property
     def cors_origins_list(self) -> list[str]:

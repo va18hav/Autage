@@ -173,26 +173,63 @@ async def test_credentials_webhook_secret_and_kubernetes_settings(authed_client,
     # 3. Kubernetes configuration lifecycle + connectivity test
     k8s_init = await authed_client.get("/settings/kubernetes")
     assert k8s_init.json()["configured"] is False
+    assert k8s_init.json()["ca_configured"] is False
 
-    k8s_put = await authed_client.put(
+    CA = "-----BEGIN CERTIFICATE-----\nMiIC\n-----END CERTIFICATE-----\n"
+
+    # Missing CA certificate -> rejected (TLS verification is mandatory)
+    k8s_no_ca = await authed_client.put(
         "/settings/kubernetes",
         json={
             "server_url": "https://k8s-api.prod.internal:6443/",
             "token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.serviceaccount",
         },
     )
+    assert k8s_no_ca.status_code == 422
+
+    k8s_put = await authed_client.put(
+        "/settings/kubernetes",
+        json={
+            "server_url": "https://k8s-api.prod.internal:6443/",
+            "token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.serviceaccount",
+            "ca_cert": CA,
+        },
+    )
     assert k8s_put.status_code == 200
     assert k8s_put.json()["configured"] is True
+    assert k8s_put.json()["ca_configured"] is True
     assert k8s_put.json()["server_url"] == "https://k8s-api.prod.internal:6443"
+
+    # Probe itself rejects http:// URLs and malformed CA certs (real probe,
+    # no network call needed for these invalid inputs)
+    http_probe = await authed_client.post(
+        "/settings/kubernetes/test",
+        json={"server_url": "http://k8s-api.prod.internal:6443", "token": "tokentokentoken", "ca_cert": CA},
+    )
+    assert http_probe.status_code == 200
+    assert http_probe.json()["ok"] is False
+    assert "https://" in http_probe.json()["message"]
+
+    bad_ca_probe = await authed_client.post(
+        "/settings/kubernetes/test",
+        json={
+            "server_url": "https://k8s-api.prod.internal:6443",
+            "token": "tokentokentoken",
+            "ca_cert": "definitely-not-a-certificate-but-long-enough-to-pass-length-validation",
+        },
+    )
+    assert bad_ca_probe.status_code == 200
+    assert bad_ca_probe.json()["ok"] is False
+    assert "CA certificate" in bad_ca_probe.json()["message"]
 
     monkeypatch.setattr(
         settings_routes_mod,
         "_probe_k8s_api",
-        lambda url, tok: CredentialTestResponse(
+        lambda url, tok, ca: CredentialTestResponse(
             ok=True,
             provider="kubernetes",
             model=url,
-            message="Connected to Kubernetes API server.",
+            message="Connected to Kubernetes API server with verified TLS certificate.",
         ),
     )
     k8s_test = await authed_client.post(
@@ -200,6 +237,7 @@ async def test_credentials_webhook_secret_and_kubernetes_settings(authed_client,
         json={
             "server_url": "https://k8s-api.prod.internal:6443",
             "token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.serviceaccount",
+            "ca_cert": CA,
         },
     )
     assert k8s_test.status_code == 200

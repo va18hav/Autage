@@ -17,7 +17,11 @@ kubectl create clusterrolebinding autage-reader-binding \\
 kubectl config view --minify -o jsonpath='{.clusters[0].cluster.server}{"\\n"}'
 
 # 3. Generate a read-only ServiceAccount Bearer Token (valid 1 year)
-kubectl create token autage-reader -n default --duration=8760h`
+kubectl create token autage-reader -n default --duration=8760h
+
+# 4. Print the cluster CA certificate (TLS verification is mandatory)
+kubectl config view --raw --flatten \\
+  -o jsonpath='{.clusters[0].cluster.certificate-authority-data}' | base64 --decode`
 
 export function KubernetesClusterCard() {
   const queryClient = useQueryClient()
@@ -27,6 +31,7 @@ export function KubernetesClusterCard() {
 
   const [serverUrl, setServerUrl] = useState('')
   const [token, setToken] = useState('')
+  const [caCert, setCaCert] = useState('')
 
   const k8sQuery = useQuery({
     queryKey: queryKeys.settings.kubernetes(),
@@ -38,13 +43,15 @@ export function KubernetesClusterCard() {
       kubernetesSettingsApi.save({
         server_url: serverUrl.trim(),
         token: token.trim(),
+        ca_cert: caCert.trim(),
       }),
     onSuccess: (data) => {
       queryClient.setQueryData(queryKeys.settings.kubernetes(), data)
       setEditing(false)
       setToken('')
+      setCaCert('')
       toast.success('Kubernetes cluster connected', {
-        description: `Connected to ${data.server_url}`,
+        description: `TLS-verified connection to ${data.server_url}`,
       })
     },
     onError: (err) => {
@@ -59,6 +66,7 @@ export function KubernetesClusterCard() {
       kubernetesSettingsApi.test({
         server_url: serverUrl.trim(),
         token: token.trim(),
+        ca_cert: caCert.trim(),
       }),
     onSuccess: (res) => {
       if (res.ok) {
@@ -85,10 +93,11 @@ export function KubernetesClusterCard() {
         configured: false,
         server_url: null,
         token_preview: null,
+        ca_configured: false,
         updated_at: null,
       })
       toast.success('Kubernetes cluster disconnected', {
-        description: 'Reverted to mock cluster mode.',
+        description: 'Runs without cluster diagnostics until a new cluster is connected.',
       })
     },
     onError: (err) => {
@@ -116,6 +125,7 @@ export function KubernetesClusterCard() {
   const handleStartEdit = () => {
     setServerUrl(config?.server_url ?? '')
     setToken('')
+    setCaCert('')
     setEditing(true)
   }
 
@@ -137,7 +147,7 @@ export function KubernetesClusterCard() {
               Kubernetes Cluster
             </h2>
             <p className="mt-0.5 text-[14px] text-neutral-500">
-              Connect your production cluster via Cluster API URL and a read-only ServiceAccount token.
+              Connect a cluster via API URL, read-only ServiceAccount token, and its CA certificate — TLS is always verified.
             </p>
           </div>
         </div>
@@ -229,6 +239,25 @@ export function KubernetesClusterCard() {
                 className="h-10 rounded-xl bg-white font-mono text-[13px]"
               />
             </div>
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label htmlFor="k8s-ca-cert" className="text-[13px] text-neutral-600">
+                Cluster CA Certificate <span className="text-neutral-400">(PEM — proves you are talking to the real cluster)</span>
+              </Label>
+              <textarea
+                id="k8s-ca-cert"
+                rows={5}
+                spellCheck={false}
+                value={caCert}
+                onChange={(e) => setCaCert(e.target.value)}
+                placeholder={'-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----'}
+                className="w-full resize-y rounded-xl border border-neutral-200/90 bg-white px-3.5 py-2.5 font-mono text-[12.5px] leading-relaxed text-neutral-800 transition-colors duration-100 hover:border-neutral-300 focus-visible:border-neutral-400 focus-visible:outline-none"
+              />
+              <p className="text-[12.5px] text-neutral-500">
+                Required — printed by step 4 of the setup commands (or decode
+                <code className="mx-1 font-mono text-[11.5px]">certificate-authority-data</code>
+                from your kubeconfig). Connections without it are rejected.
+              </p>
+            </div>
           </div>
 
           <div className="flex flex-wrap items-center justify-end gap-2.5 pt-4">
@@ -244,7 +273,7 @@ export function KubernetesClusterCard() {
               variant="outline"
               size="sm"
               className="rounded-full bg-white px-4"
-              disabled={!serverUrl.trim() || !token.trim() || testMutation.isPending}
+              disabled={!serverUrl.trim() || !token.trim() || !caCert.trim() || testMutation.isPending}
               onClick={() => testMutation.mutate()}
             >
               {testMutation.isPending ? 'Verifying…' : 'Verify connection'}
@@ -252,7 +281,7 @@ export function KubernetesClusterCard() {
             <Button
               size="sm"
               className="rounded-full px-4"
-              disabled={!serverUrl.trim() || !token.trim() || saveMutation.isPending}
+              disabled={!serverUrl.trim() || !token.trim() || !caCert.trim() || saveMutation.isPending}
               onClick={() => saveMutation.mutate()}
             >
               {saveMutation.isPending ? 'Saving…' : 'Save cluster'}
@@ -264,13 +293,13 @@ export function KubernetesClusterCard() {
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <p className="text-[14.5px] font-medium text-neutral-900">
-                {configured ? 'Production Cluster Connected' : 'Mock Cluster Mode Active'}
+                {configured ? 'Cluster Connected (TLS verified)' : 'No Cluster Connected'}
               </p>
             </div>
             <p className="mt-0.5 truncate font-mono text-[12.5px] text-neutral-400">
               {configured
-                ? `${config?.server_url} · token ${config?.token_preview ?? '••••'}`
-                : 'Using simulated kubectl responses until a cluster is connected'}
+                ? `${config?.server_url} · token ${config?.token_preview ?? '••••'} · CA ${config?.ca_configured ? '✓ verified' : '✗ missing'}`
+                : 'Connect a cluster to enable Kubernetes diagnostics'}
             </p>
           </div>
 

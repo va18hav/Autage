@@ -1,17 +1,17 @@
 import contextvars
 import json
+import os
 import shutil
 import ssl
 import subprocess
+import tempfile
 import urllib.error
 import urllib.parse
 import urllib.request
 from typing import Optional
 
-from services.config import settings
-
-# Context variable holding {"server_url": str, "token": str} loaded from the
-# encrypted `credentials` table at the start of `fetch_logs`.
+# Context variable holding {"server_url": str, "token": str, "ca_cert": str}
+# loaded from the encrypted `credentials` table at the start of `fetch_logs`.
 _cluster_credentials: contextvars.ContextVar[Optional[dict]] = contextvars.ContextVar(
     "k8s_cluster_credentials",
     default=None,
@@ -26,23 +26,28 @@ def reset_cluster_credentials(token: contextvars.Token) -> None:
     _cluster_credentials.reset(token)
 
 
-def _http_k8s_get(server_url: str, token: str, path: str, accept: str = "application/json") -> dict:
+def _http_k8s_get(
+    server_url: str, token: str, path: str, ca_cert: str, accept: str = "application/json"
+) -> dict:
     """Direct HTTPS call to the Kubernetes API Server (used when kubectl binary
-    is not installed on the worker host)."""
+    is not installed on the worker host).
+
+    TLS is always verified against the cluster's CA certificate — there is no
+    skip-verification path.
+    """
     url = f"{server_url.rstrip('/')}{path}"
     req = urllib.request.Request(
         url,
         headers={
             "Authorization": f"Bearer {token}",
-            "Accept": accept,
+            # NOTE: the Kubernetes API server rejects "Accept: text/plain" on
+            # /pods/<name>/log with HTTP 406 — it always answers with a
+            # text/plain body regardless, so keep the header JSON.
+            "Accept": "application/json",
         },
         method="GET",
     )
-    ctx = (
-        ssl.create_default_context()
-        if settings.K8S_VERIFY_SSL
-        else ssl._create_unverified_context()
-    )
+    ctx = ssl.create_default_context(cadata=ca_cert)
     try:
         with urllib.request.urlopen(req, context=ctx, timeout=15) as resp:
             raw = resp.read().decode("utf-8", errors="replace")
@@ -57,49 +62,59 @@ def _http_k8s_get(server_url: str, token: str, path: str, accept: str = "applica
 def _run(args: list[str], rest_fallback_path: Optional[str] = None, accept: str = "application/json") -> dict:
     """
     Executes a kubectl command against the configured Kubernetes cluster (using
-    the ServiceAccount token + Cluster API URL from the DB if present).
-    Falls back to mock responses when no cluster is configured in DB and
-    MOCK_KUBECTL=true.
+    the ServiceAccount token + Cluster API URL + CA certificate from the DB if
+    present). TLS verification is mandatory: without a stored CA certificate no
+    DB-configured path is used at all. Falls back to a bare local kubectl
+    (ambient kubeconfig, which carries its own CA) when no cluster is configured.
     """
     creds = _cluster_credentials.get()
-    has_db_cluster = bool(creds and creds.get("server_url") and creds.get("token"))
-
-    if not has_db_cluster and settings.MOCK_KUBECTL:
-        from services.agent.mock.kubectl_responses import get_mock_response
-        return get_mock_response(args)
+    has_db_cluster = bool(
+        creds and creds.get("server_url") and creds.get("token") and creds.get("ca_cert")
+    )
 
     if has_db_cluster:
         server_url = str(creds["server_url"]).strip().rstrip("/")
         token = str(creds["token"]).strip()
+        ca_cert = str(creds["ca_cert"]).strip()
 
-        # If kubectl CLI is available on the host, pass --server and --token
+        # If kubectl CLI is available on the host, pass --server, --token, and
+        # the CA certificate (written to a 0600 temp file for the subprocess).
         if shutil.which("kubectl"):
-            auth_args = [
-                *args,
-                f"--server={server_url}",
-                f"--token={token}",
-            ]
-            if not settings.K8S_VERIFY_SSL:
-                auth_args.append("--insecure-skip-tls-verify=true")
+            fd, ca_path = tempfile.mkstemp(prefix="autage-ca-", suffix=".pem")
             try:
-                result = subprocess.run(
-                    auth_args,
-                    capture_output=True,
-                    text=True,
-                    timeout=20,
-                )
-                err = result.stderr.replace(token, "***") if result.stderr else None
-                return {
-                    "ok": result.returncode == 0,
-                    "output": result.stdout,
-                    "error": err if result.returncode != 0 else None,
-                }
-            except subprocess.TimeoutExpired:
-                return {"ok": False, "output": "", "error": "kubectl command timed out after 20s"}
+                os.fchmod(fd, 0o600)
+                with os.fdopen(fd, "w") as f:
+                    f.write(ca_cert)
+                auth_args = [
+                    *args,
+                    f"--server={server_url}",
+                    f"--token={token}",
+                    f"--certificate-authority={ca_path}",
+                ]
+                try:
+                    result = subprocess.run(
+                        auth_args,
+                        capture_output=True,
+                        text=True,
+                        timeout=20,
+                    )
+                    err = result.stderr.replace(token, "***") if result.stderr else None
+                    return {
+                        "ok": result.returncode == 0,
+                        "output": result.stdout,
+                        "error": err if result.returncode != 0 else None,
+                    }
+                except subprocess.TimeoutExpired:
+                    return {"ok": False, "output": "", "error": "kubectl command timed out after 20s"}
+            finally:
+                try:
+                    os.unlink(ca_path)
+                except OSError:
+                    pass
 
         # Fallback: direct HTTPS call to the Kubernetes API Server if kubectl is not installed
         if rest_fallback_path:
-            return _http_k8s_get(server_url, token, rest_fallback_path, accept=accept)
+            return _http_k8s_get(server_url, token, rest_fallback_path, ca_cert, accept=accept)
 
     # Local/in-cluster default kubectl execution
     try:
