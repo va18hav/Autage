@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ArrowRight, ChevronDown } from 'lucide-react'
+import { ArrowRight, ChevronDown, RefreshCw } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { llmSettingsApi, providerApi } from '../../../shared/lib/api'
@@ -146,6 +146,11 @@ export function ModelStepsCard() {
     setOverrides((prev) => ({ ...prev, [stepKey]: { ...prev[stepKey], ...patch } }))
   }
 
+  const refreshModels = () => {
+    queryClient.invalidateQueries({ queryKey: queryKeys.settings.catalog() })
+    toast.success('Model lists refreshed')
+  }
+
   if (catalogQuery.isLoading || stepsQuery.isLoading) {
     return (
       <div className="h-64 animate-pulse rounded-2xl border border-neutral-200/80 bg-white p-6" />
@@ -182,6 +187,8 @@ export function ModelStepsCard() {
           <p className="mt-1 text-[14px] text-neutral-500">
             Showing models from your {configuredProviders.length} configured{' '}
             {configuredProviders.length === 1 ? 'provider' : 'providers'}.
+            {configuredProviders.some((p) => p.models_source === 'live') &&
+              ' Lists fetched live from each provider.'}
           </p>
         </div>
 
@@ -191,6 +198,11 @@ export function ModelStepsCard() {
               <span
                 key={p.id}
                 className="inline-flex items-center gap-2 rounded-full border border-neutral-200/80 bg-neutral-50/70 px-3 py-1 text-[12.5px] font-medium text-neutral-700"
+                title={
+                  p.models_source === 'live'
+                    ? `Model list fetched live from ${p.display_name}`
+                    : `${p.display_name} is using its built-in model list (verify the connection to fetch it live)`
+                }
               >
                 <ProviderLogo
                   providerId={p.id}
@@ -199,9 +211,26 @@ export function ModelStepsCard() {
                   imgClassName="size-3.5"
                 />
                 <span>{p.display_name}</span>
+                {p.models_source === 'live' && (
+                  <span
+                    aria-label="live model list"
+                    className="size-1.5 rounded-full bg-emerald-500"
+                  />
+                )}
               </span>
             ))}
           </div>
+
+          <Button
+            size="sm"
+            variant="outline"
+            className="rounded-full px-4"
+            onClick={refreshModels}
+            disabled={catalogQuery.isFetching}
+          >
+            <RefreshCw className={`size-4 ${catalogQuery.isFetching ? 'animate-spin' : ''}`} />
+            Refresh models
+          </Button>
 
           <Button
             size="sm"
@@ -255,6 +284,11 @@ export function ModelStepsCard() {
                       onChange={(e) => update(step.step_key, { model_id: e.target.value })}
                       className="h-10 w-full cursor-pointer appearance-none rounded-xl border border-neutral-200/90 bg-white pr-8 pl-3.5 text-[13.5px] font-medium text-neutral-800 transition-colors duration-100 hover:border-neutral-300 focus-visible:border-neutral-400 focus-visible:outline-none sm:min-w-56"
                     >
+                      {!models.some((m) => m.id === draft.model_id) && (
+                        <option value={draft.model_id}>
+                          {draft.model_id} (no longer listed)
+                        </option>
+                      )}
                       {models.map((m) => (
                         <option key={m.id} value={m.id}>
                           {m.label}

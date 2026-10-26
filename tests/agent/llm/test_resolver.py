@@ -63,7 +63,7 @@ def test_llm_resolver_error_cases():
             StepKey.DIAGNOSTICS: StepSelection(
                 step_key=StepKey.DIAGNOSTICS,
                 provider_id="anthropic",
-                model_id="claude-sonnet-4",
+                model_id="claude-sonnet-5-5",
                 temperature=None,
                 max_output_tokens=None,
                 is_default=False,

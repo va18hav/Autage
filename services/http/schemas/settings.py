@@ -29,6 +29,9 @@ class ProviderOut(BaseModel):
     credential_configured: bool = False
     # True when the stored key came from the plaintext DB row
     credential_preview: Optional[str] = None
+    # "live" when model list was fetched from the provider right now,
+    # "static" when falling back to the built-in registry catalog
+    models_source: str = "static"
 
 
 class CatalogResponse(BaseModel):

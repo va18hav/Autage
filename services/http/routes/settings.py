@@ -11,6 +11,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from services.agent.llm import registry, StepKey
+from services.agent.llm import discovery as model_discovery
+from services.agent.llm.discovery import DiscoveryError
 from services.agent.llm.registry import (
     UnknownProviderError,
     get_provider,
@@ -66,14 +68,31 @@ async def get_provider_catalog(db: AsyncSession = Depends(get_db_session)):
     providers = []
     for spec in registry.PROVIDERS.values():
         catalog_entry = registry.catalog_entry(spec)
+        models = catalog_entry["models"]
+        models_source = "static"
+
+        # With a stored credential, ask the provider what it currently serves
+        # so retired model IDs never reach the UI. Static list = fallback.
+        payload = await SecretStore.fetch_payload(spec.id)
+        if payload:
+            try:
+                live = await model_discovery.list_models_live(spec, payload)
+                models = [
+                    {"id": m.id, "label": m.label, "tier": m.tier} for m in live
+                ]
+                models_source = "live"
+            except DiscoveryError:
+                pass  # keep fallback list; user can still use "Verify connection" to diagnose
+
         providers.append(
             ProviderOut(
                 id=spec.id,
                 display_name=spec.display_name,
-                models=catalog_entry["models"],
+                models=models,
                 credential_fields=catalog_entry["credential_fields"],
                 credential_configured=await _provider_configured(db, spec.id),
                 credential_preview=await _credential_preview(db, spec.id),
+                models_source=models_source,
             )
         )
 
@@ -155,7 +174,7 @@ async def put_llm_settings(
             )
         seen.add(item.step_key)
         _ensure_step_key(item.step_key)
-        _validate_selection(item.provider_id, item.model_id)
+        await _validate_selection(item.provider_id, item.model_id)
 
     for item in payload:
         row = await db.get(LlmStepConfig, item.step_key)
@@ -207,7 +226,7 @@ def _build_preview(spec, fields: dict[str, str]) -> str:
     return "••••"
 
 
-def _validate_selection(provider_id: str, model_id: str) -> None:
+async def _validate_selection(provider_id: str, model_id: str) -> None:
     try:
         spec = get_provider(provider_id)
     except UnknownProviderError:
@@ -215,10 +234,36 @@ def _validate_selection(provider_id: str, model_id: str) -> None:
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Unknown provider '{provider_id}'",
         )
-    if model_id not in {m.id for m in spec.models}:
+
+    static_ids = {m.id for m in spec.models}
+    if model_id in static_ids:
+        return
+
+    # Not in the static fallback — accept it only if the provider currently
+    # serves it (model lists discovered live after the key was saved).
+    payload = await SecretStore.fetch_payload(provider_id)
+    if not payload:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Model '{model_id}' is not registered for provider '{provider_id}'",
+            detail=(
+                f"Model '{model_id}' is not registered for provider '{provider_id}' "
+                "(and no API key is stored — add one in Settings → Integrations)"
+            ),
+        )
+    try:
+        live = await model_discovery.list_models_live(spec, payload)
+    except DiscoveryError:
+        # Provider listing unreachable right now — stay permissive so a saved
+        # configuration can still be rotated; a bad ID surfaces at run time.
+        return
+    if model_id not in {m.id for m in live}:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                f"Model '{model_id}' is not available for provider '{provider_id}'. "
+                "Verify the connection in Settings → Integrations and pick a "
+                "current model."
+            ),
         )
 
 
@@ -261,6 +306,8 @@ async def upsert_credential(
 
     preview = _build_preview(spec, fields)
     await SecretStore.save(purpose, fields, preview)
+    # Credential changed → next catalog read should re-discover models live.
+    model_discovery.invalidate(purpose)
     return await db.get(Credential, purpose)
 
 
@@ -276,6 +323,7 @@ async def delete_credential(purpose: str, db: AsyncSession = Depends(get_db_sess
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"No credential stored for '{purpose}'",
         )
+    model_discovery.invalidate(purpose)
 
 
 @router.post(
@@ -288,8 +336,10 @@ async def test_credential(
     payload: CredentialPayloadIn,
     db: AsyncSession = Depends(get_db_session),
 ):
-    """Verify the supplied credential fields by making a tiny live call.
-    Nothing is persisted — used by the 'Verify' button during setup."""
+    """Verify the supplied credential fields by listing the provider's current
+    models live (free, no token cost). Nothing is persisted — used by the
+    'Verify' button during setup. Success also proves the key works, because
+    model-listing endpoints require valid authentication."""
     try:
         spec = get_provider(purpose)
     except UnknownProviderError:
@@ -306,27 +356,39 @@ async def test_credential(
             detail=f"Missing required field(s): {', '.join(missing)}",
         )
 
-    model = spec.create(
-        credential=fields,
-        model_id=spec.models[0].id,
-        temperature=0,
-        max_output_tokens=None,
-    )
     try:
-        await model.ainvoke("Say OK.")
-    except Exception as exc:
+        models = await model_discovery.list_models_live(spec, fields, force_refresh=True)
+    except DiscoveryError as exc:
+        detail = str(exc)
+        if "HTTP 401" in detail or "HTTP 403" in detail:
+            message = "Provider rejected the credential (401/403) — check the API key."
+        elif "HTTP 4" in detail[:12]:
+            message = f"Provider rejected the request: {detail[:200]}"
+        else:
+            message = f"Could not reach the provider's model list ({detail[:200]})."
         return TestCredentialResponse(
             ok=False,
             provider=spec.id,
-            model=spec.models[0].id,
-            message=f"Provider rejected the credential: {exc.__class__.__name__}",
+            model=None,
+            message=message,
+        )
+
+    if not models:
+        return TestCredentialResponse(
+            ok=False,
+            provider=spec.id,
+            model=None,
+            message="Provider returned an empty model list — the key may be valid but restricted.",
         )
 
     return TestCredentialResponse(
         ok=True,
         provider=spec.id,
-        model=spec.models[0].id,
-        message="Credential verified — the provider accepted the request.",
+        model=None,
+        message=(
+            f"Credential verified — {len(models)} models available "
+            "(model list fetched live; no token cost)."
+        ),
     )
 
 

@@ -21,6 +21,9 @@ export interface Provider {
   credential_fields: CredentialField[]
   credential_configured: boolean
   credential_preview: string | null
+  // 'live' when the model list was fetched from the provider right now,
+  // 'static' when serving the built-in fallback catalog
+  models_source?: 'live' | 'static'
 }
 
 export interface StepKeyInfo {

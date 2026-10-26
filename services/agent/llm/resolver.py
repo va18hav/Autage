@@ -60,7 +60,7 @@ def _env_credential(provider_id: str) -> str | None:
 # Behavior-preserving defaults (what the nodes were hard-coded to before).
 # Override via the Settings API — rows in llm_step_configs replace these.
 DEFAULT_STEP_MODELS: dict[str, tuple[str, str]] = {
-    step_key: ("google", "gemini-3.7-flash") for step_key in StepKey
+    step_key: ("google", "gemini-3.8-flash") for step_key in StepKey
 }
 
 
@@ -175,6 +175,15 @@ def friendly_error(exc: BaseException, steps: dict[str, str] | None = None) -> s
         return (
             f"Authentication with the LLM provider failed ({exc.__class__.__name__}). "
             "Check the API key in Settings → Integrations."
+        )
+    if any(
+        marker in message
+        for marker in ("404", "not_found", "does not exist", "no such model", "model_not_found")
+    ):
+        return (
+            "The provider rejected the configured model (404/not found). The model ID is "
+            "likely retired or unavailable on that account — pick a current model in "
+            "Settings → Model by step."
         )
     return f"{exc.__class__.__name__}: {exc}"
 
