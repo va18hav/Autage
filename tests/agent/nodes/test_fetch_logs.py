@@ -62,6 +62,19 @@ async def test_fetch_logs_node_executes_commands_and_summarizes(in_memory_db, mo
     fake_llm = _FakeLLM(plan, "Pod auth-service-xyz crashed with OOMKilled (exit code 137).")
     monkeypatch.setattr(fetch_logs_mod, "get_llm", lambda _step: fake_llm)
 
+    # Fake the tool executors so the node is fully offline-deterministic —
+    # no dependence on the developer's local kubeconfig/kind cluster.
+    monkeypatch.setitem(
+        fetch_logs_mod.TOOL_DISPATCHER,
+        KubectlTool.GET_POD_LOGS_PREVIOUS,
+        lambda cmd: {"ok": True, "output": "OOMKilled (exit code 137) after 512Mi", "error": None},
+    )
+    monkeypatch.setitem(
+        fetch_logs_mod.TOOL_DISPATCHER,
+        KubectlTool.GET_EVENTS,
+        lambda cmd: {"ok": True, "output": "Killing pod (OOMKill).", "error": None},
+    )
+
     out = await fetch_logs(
         {
             "incident_id": str(uuid4()),

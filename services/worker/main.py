@@ -1,4 +1,3 @@
-import os
 import json
 from arq.connections import RedisSettings
 from sqlalchemy import update
@@ -12,10 +11,6 @@ from services.agent.llm import (
 )
 from services.agent.llm.resolver import friendly_error
 from services.config import settings
-
-# Keep the mock tooling switch working without real cluster access.
-if settings.MOCK_KUBECTL:
-    os.environ["MOCK_KUBECTL"] = "true"
 
 from services.db.database import async_session_factory
 from services.db.models.incident import Incident, IncidentStatus
