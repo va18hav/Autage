@@ -47,7 +47,7 @@ Each of the four stages can be routed to a different LLM provider and model (`Go
 ## Key Features
 
 - **Encrypted Credential Store**: LLM API keys, webhook signing secrets, and Kubernetes ServiceAccount tokens are encrypted at rest in PostgreSQL using Fernet (`AUTAGE_SECRET_KEY`).
-- **Kubernetes Integration**: Connect a real cluster via its API Server URL and a read-only `view` ServiceAccount bearer token, or run locally in simulated cluster mode (`MOCK_KUBECTL=True`).
+- **Kubernetes Integration**: Connect a real cluster via its API Server URL and a read-only `view` ServiceAccount bearer token (see `docs/testing-with-kind.md` for a free local kind setup).
 - **Real-Time SSE Streaming**: Every node transition and `kubectl` command output is published over Redis Pub/Sub and streamed to the browser via Server-Sent Events with race-condition-safe status reconciliation.
 - **Active-Incident Deduplication**: Computes SHA-256 payload fingerprints and deduplicates against currently active (`PENDING`/`TRIAGING`) incidents while allowing recurring alerts after resolution.
 - **Client-Side Runbook Chunker**: Parses Markdown runbooks (and YAML frontmatter) into discrete, ordered sections with token estimates before indexing.
@@ -62,8 +62,12 @@ The agent never assembles shell commands — it calls fixed Python functions suc
 `get_pod_logs()`, `describe_pod()`, `get_events()`, and `get_deployment()`, where the
 LLM only supplies parameters (namespace, pod name, tail count). Since no mutating
 executor exists, *no prompt injection or hallucination can reconfigure, delete, or
-scale anything in the cluster*. When the host has no `kubectl` binary, the same
-read-only verbs fall back to direct HTTPS calls against the Kubernetes API Server.
+scale anything in the cluster*. Read-only is also enforced one layer deeper: the
+connected identity is a Kubernetes ServiceAccount bound to the `view` role
+(`get`/`list`/`watch` verbs only — Secret resources are excluded), so even a
+hallucinated `delete` command is rejected by the API server itself, before the
+agent's own tool surface could matter. When the host has no `kubectl` binary, the
+same read-only verbs fall back to direct HTTPS calls against the Kubernetes API Server.
 
 **Alert payloads are stored raw and parsed by the LLM — no per-provider adapters.**
 Datadog, Prometheus/Alertmanager, Grafana, Sentry, and PagerDuty each have a
@@ -94,7 +98,46 @@ trade cost, latency, and privacy to its own preference.
 
 ---
 
+## Scope: What's Proven vs. What Production Would Require
+
+Autage is proven end-to-end against a **real Kubernetes cluster** (kind): real
+webhook ingestion, LLM-planned read-only `kubectl` executed against live pods,
+runbook retrieval, and streamed remediation — the entire pipeline, no mocks.
+
+**Trust boundaries implemented today:**
+
+- Read-only enforcement is two-layered: the agent's tool surface exposes only
+  read verbs, and the cluster identity is a ServiceAccount bound to the `view`
+  role (`get`/`list`/`watch` only, no Secret access) — the API server itself
+  rejects anything destructive, so even a hallucinated command cannot mutate
+  the cluster.
+- All credentials (LLM keys, webhook signing secret, SA token, cluster CA
+  certificate) are Fernet-encrypted at rest in PostgreSQL; tokens are masked in
+  command diagnostics.
+- Cluster connections are **TLS-verified against the cluster's own CA
+  certificate — mandatory, with no skip-verify path**. The CA is stored
+  encrypted alongside the token and handed to both the kubectl path
+  (`--certificate-authority`) and the direct-HTTPS fallback; connections
+  without a CA are rejected. The kind setup script prints it ready to paste.
+- Every monitoring payload is HMAC-verified before ingestion; the dashboard is
+  single-user with bcrypt + `HttpOnly` JWT session cookies.
+
+**Deliberately out of scope** (a conscious single-tenant, dev-grade trade-off —
+not unknown, and each item below has a known design path):
+
+| Gap | Why deferred | Production design |
+|---|---|---|
+| Token auto-rotation / OIDC identity | The stored long-lived token matches the current single-tenant credential-row model | Short-lived TokenRequest tokens fetched per run, or org OIDC; theft-window shrinks to minutes |
+| Namespace-scoped permissions | `view` is cluster-wide read, fine for a test cluster | `Role` + `RoleBinding` in one namespace instead of `ClusterRoleBinding` |
+| Output truncation for large namespaces | Test cluster has one broken pod | Per-tool output caps before results enter the LLM context |
+| Multi-tenant credentials | One user / one cluster by design | Tenant-keyed credential rows + `tenant_id` on incidents |
+| Dashboard TLS / secret-manager for `AUTAGE_SECRET_KEY` | Dev-grade compose deployment | Standard reverse-proxy + vault setup, orthogonal to the agent |
+
+---
+
 ## Quickstart (Full Stack with Docker Compose)
+
+**Requirements:** Docker (for testing, optionally `kind` + `kubectl` — the setup script installs them via Homebrew).
 
 Start PostgreSQL, Redis, FastAPI, the ARQ worker, and the React dashboard in a single command:
 
@@ -104,54 +147,21 @@ cp .env.example .env
 python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
 
 docker compose up --build
+
+# Optional, but makes the demo real end-to-end: one command creates a disposable
+# genuine Kubernetes cluster (kind) with a crashing app + a read-only bot account:
+bash scripts/setup_kind_cluster.sh
 ```
 
-Then open `http://localhost:5173`.
+Then open `http://localhost:5173`:
 
----
-
-## Local Development Setup
-
-**Requirements:** Python 3.13+, [uv](https://docs.astral.sh/uv/), Docker, Node.js 22+.
-
-```bash
-# 1. Install Python dependencies (including dev/test dependencies)
-uv sync
-
-# 2. Start PostgreSQL and Redis only
-docker compose up -d db redis
-
-# 3. Configure environment
-cp .env.example .env
-cp services/dashboard/.env.example services/dashboard/.env
-# Generate a Fernet key and set AUTAGE_SECRET_KEY in .env:
-uv run python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
-
-# 4. Run database migrations
-uv run alembic upgrade head
-```
-
-Start the three processes in separate terminals:
-
-```bash
-# Terminal 1 — FastAPI server (port 8000)
-uv run uvicorn services.http.app:app --reload
-
-# Terminal 2 — ARQ background worker
-uv run arq services.worker.main.WorkerSettings
-
-# Terminal 3 — React dashboard (port 5173)
-cd services/dashboard && npm install && npm run dev
-```
-
-Open `http://localhost:5173`:
 1. Complete the one-time account registration screen.
 2. Walk through the 5-step **Onboarding** flow:
    - **Step 1 — Alert Webhook & Secret**: Copy the dynamic webhook URL (`${VITE_API_URL}/webhooks/alert`) and generate your HMAC signing secret.
-   - **Step 2 — AI Model Providers**: Add at least one provider API key (`Google Gemini`, `OpenAI`, `Anthropic`, `OpenRouter`, or `Ollama`).
+   - **Step 2 — AI Model Providers**: Add at least one provider API key (`Google Gemini`, `OpenAI`, `Anthropic`, `OpenRouter`, or `Ollama`). Model lists are fetched live from each provider once a key is saved.
    - **Step 3 — Pipeline Model Routing**: Assign models to each of the 4 pipeline stages.
    - **Step 4 — Upload Runbooks**: Upload `.md` operational runbooks to be chunked and indexed.
-   - **Step 5 — Kubernetes Cluster**: Connect your cluster via API Server URL + read-only ServiceAccount token (or continue in Mock Cluster Mode).
+   - **Step 5 — Kubernetes Cluster**: Connect a cluster via API Server URL + read-only ServiceAccount token (the kind script above already created one — it printed both values ready to paste).
 3. Trigger a test incident directly from the **Dashboard** (or run `uv run python scripts/send_mock_alert.py`).
 
 ---
