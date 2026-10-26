@@ -31,6 +31,24 @@ async def recommended_steps(state: AgentState) -> dict:
 
     llm = get_llm(StepKey.RECOMMENDATIONS)
     structured = llm.with_structured_output(RecommendedSteps)
-    response: RecommendedSteps = await structured.ainvoke(prompt)
+
+    # Providers occasionally return the reasoning but drop the required
+    # list (schema drift on fast/cheap models). Retry once before failing.
+    response = None
+    for attempt in range(2):
+        response = await structured.ainvoke(prompt)
+        if response is not None and response.recommended_steps:
+            break
+        prompt += (
+            "\n\n## Reminder\nYour previous response was rejected because it did not "
+            'include a non-empty "recommended_steps" list. Return the JSON object with '
+            'both keys: "reasoning" and "recommended_steps".'
+        )
+
+    if not response.recommended_steps:
+        raise RuntimeError(
+            "The recommendations model did not return any remediation steps "
+            "(schema was missing after a retry)."
+        )
 
     return {"recommended_steps": response.recommended_steps}

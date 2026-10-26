@@ -183,4 +183,10 @@ def build_recommended_steps_prompt(
 - Each step must state exactly what to run or check — reference real resource names, values, and commands where possible
 - Cover immediate mitigation first, then verification that service is restored, then follow-up hardening
 - Keep every step actionable on its own (no meta commentary)
+
+## Required output (JSON with exactly these two keys)
+- "reasoning": one line explaining the plan
+- "recommended_steps": a list of 5-10 plain strings — the ordered remediation steps, each fully actionable on its own
+
+Do not omit either key; every remediation step must be an element of "recommended_steps".
 """
