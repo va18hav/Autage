@@ -43,6 +43,17 @@ class Incident(Base, TimestampMixin):
         nullable=True
     )
 
+    incident_type: Mapped[str | None] = mapped_column(
+        String(32),
+        index=True,
+        nullable=True
+    )
+
+    analysis: Mapped[dict[str, Any] | None] = mapped_column(
+        JSONB,
+        nullable=True
+    )
+
     recommended_steps: Mapped[dict[str, Any] | None] = mapped_column(
         JSONB,
         nullable= True

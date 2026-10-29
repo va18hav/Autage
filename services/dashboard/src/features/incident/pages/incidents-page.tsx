@@ -42,7 +42,7 @@ export function IncidentsPage() {
       stats: {
         total: all.length,
         ongoing: ongoingList.length,
-        resolved: completedList.length,
+        completed: completedList.length,
         failed: failedList.length,
       },
     }
@@ -51,7 +51,7 @@ export function IncidentsPage() {
   const filterTabs = [
     { key: 'ALL' as const, label: 'All', count: stats.total },
     { key: 'ONGOING' as const, label: 'Active', count: stats.ongoing },
-    { key: 'COMPLETED' as const, label: 'Resolved', count: stats.resolved },
+    { key: 'COMPLETED' as const, label: 'Analyzed', count: stats.completed },
     ...(stats.failed > 0
       ? [{ key: 'FAILED' as const, label: 'Failed', count: stats.failed }]
       : []),
@@ -64,7 +64,7 @@ export function IncidentsPage() {
           Incidents
         </h1>
         <p className="mt-1.5 text-[15px] text-neutral-500">
-          Browse and inspect all incoming alerts, diagnostic traces, and remediation steps.
+          Browse and inspect all incoming alerts, diagnostic traces, and structured diagnoses.
         </p>
       </header>
 

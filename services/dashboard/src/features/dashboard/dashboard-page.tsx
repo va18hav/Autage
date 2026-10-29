@@ -66,7 +66,7 @@ export function DashboardPage() {
         />
       </div>
 
-      {/* 4-Stage LangGraph Pipeline Topology */}
+      {/* Model-backed pipeline stages (triage + diagnosis) */}
       <PipelineTopologyCard
         steps={llmSettings?.steps ?? []}
         stepKeys={catalog?.steps ?? []}

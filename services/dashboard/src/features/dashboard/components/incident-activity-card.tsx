@@ -9,11 +9,11 @@ interface IncidentActivityCardProps {
 export function IncidentActivityCard({ incidents }: IncidentActivityCardProps) {
   const now = useNow(60_000)
 
-  const { days, maxCount, stats, resolutionRate } = useMemo(() => {
+  const { days, maxCount, stats, completionRate } = useMemo(() => {
     const dayBuckets: Array<{
       label: string
       shortLabel: string
-      resolved: number
+      completed: number
       active: number
       failed: number
       total: number
@@ -21,7 +21,7 @@ export function IncidentActivityCard({ incidents }: IncidentActivityCardProps) {
 
     const byDateKey = new Map<
       string,
-      { resolved: number; active: number; failed: number }
+      { completed: number; active: number; failed: number }
     >()
 
     for (let i = 13; i >= 0; i--) {
@@ -29,11 +29,11 @@ export function IncidentActivityCard({ incidents }: IncidentActivityCardProps) {
       d.setHours(0, 0, 0, 0)
       d.setDate(d.getDate() - i)
       const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`
-      byDateKey.set(key, { resolved: 0, active: 0, failed: 0 })
+      byDateKey.set(key, { completed: 0, active: 0, failed: 0 })
       dayBuckets.push({
         label: d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
         shortLabel: d.toLocaleDateString(undefined, { day: 'numeric' }),
-        resolved: 0,
+        completed: 0,
         active: 0,
         failed: 0,
         total: 0,
@@ -42,11 +42,11 @@ export function IncidentActivityCard({ incidents }: IncidentActivityCardProps) {
 
     const keys = Array.from(byDateKey.keys())
     let activeTotal = 0
-    let resolvedTotal = 0
+    let completedTotal = 0
     let failedTotal = 0
 
     for (const inc of incidents) {
-      if (inc.status === 'COMPLETED') resolvedTotal++
+      if (inc.status === 'COMPLETED') completedTotal++
       else if (inc.status === 'FAILED') failedTotal++
       else activeTotal++
 
@@ -54,7 +54,7 @@ export function IncidentActivityCard({ incidents }: IncidentActivityCardProps) {
       const key = `${created.getFullYear()}-${created.getMonth()}-${created.getDate()}`
       const idx = keys.indexOf(key)
       if (idx !== -1) {
-        if (inc.status === 'COMPLETED') dayBuckets[idx].resolved++
+        if (inc.status === 'COMPLETED') dayBuckets[idx].completed++
         else if (inc.status === 'FAILED') dayBuckets[idx].failed++
         else dayBuckets[idx].active++
         dayBuckets[idx].total++
@@ -62,9 +62,9 @@ export function IncidentActivityCard({ incidents }: IncidentActivityCardProps) {
     }
 
     const max = Math.max(1, ...dayBuckets.map((b) => b.total))
-    const totalFinished = resolvedTotal + failedTotal
+    const totalFinished = completedTotal + failedTotal
     const rate =
-      totalFinished > 0 ? Math.round((resolvedTotal / totalFinished) * 100) : 100
+      totalFinished > 0 ? Math.round((completedTotal / totalFinished) * 100) : 100
 
     return {
       days: dayBuckets,
@@ -72,10 +72,10 @@ export function IncidentActivityCard({ incidents }: IncidentActivityCardProps) {
       stats: {
         total: incidents.length,
         active: activeTotal,
-        resolved: resolvedTotal,
+        completed: completedTotal,
         failed: failedTotal,
       },
-      resolutionRate: rate,
+      completionRate: rate,
     }
   }, [incidents, now])
 
@@ -84,14 +84,14 @@ export function IncidentActivityCard({ incidents }: IncidentActivityCardProps) {
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-[14px] font-medium text-neutral-500">
-            Incident Volume & Resolution
+            Incident Volume & Analysis
           </p>
           <div className="mt-2 flex items-baseline gap-3">
             <span className="text-4xl font-semibold tracking-tight text-neutral-950 tabular-nums">
               {stats.total}
             </span>
             <span className="text-[14px] text-neutral-500">
-              total incidents · {resolutionRate}% resolved
+              total incidents · {completionRate}% analyzed
             </span>
           </div>
         </div>
@@ -99,7 +99,7 @@ export function IncidentActivityCard({ incidents }: IncidentActivityCardProps) {
         <div className="flex flex-wrap items-center gap-2">
           <span className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-[13px] font-medium text-emerald-800">
             <span className="size-2 rounded-full bg-emerald-500" />
-            {stats.resolved} Resolved
+            {stats.completed} Analyzed
           </span>
           {stats.active > 0 && (
             <span className="inline-flex items-center gap-2 rounded-full bg-amber-50 px-3 py-1 text-[13px] font-medium text-amber-800">

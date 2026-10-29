@@ -37,9 +37,9 @@ class Credential(Base, TimestampMixin):
 class LlmStepConfig(Base, TimestampMixin):
     """Per-step LLM model selection for the agent pipeline.
 
-    One row per pipeline step (triage / diagnostics / runbooks /
-    recommendations). Missing rows mean "use the built-in default" — that
-    fallback lives in services.agent.llm.resolver, not here.
+    One row per model-backed stage (triage / diagnose). Missing rows mean
+    "use the built-in default" — that fallback lives in
+    services.agent.llm.resolver, not here.
     """
 
     __tablename__ = "llm_step_configs"

@@ -25,6 +25,7 @@ class IncidentListItemResponse(BaseModel):
     title: str
     status: IncidentStatus
     fingerprint: Optional[str] = None
+    incident_type: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 
@@ -35,8 +36,10 @@ class IncidentDetailResponse(BaseModel):
     title: str
     status: IncidentStatus
     fingerprint: Optional[str] = None
+    incident_type: Optional[str] = None
     raw_alert: dict[str, Any]
-    # historical shapes: dict (seed), str (legacy proposed_action), list[str] (current recommended_steps node)
+    analysis: Optional[dict[str, Any]] = None
+    # Temporary compatibility field for older dashboard payloads.
     recommended_steps: Optional[dict[str, Any] | str | list[str]] = None
     steps: List[IncidentStepResponse] = []
     created_at: datetime

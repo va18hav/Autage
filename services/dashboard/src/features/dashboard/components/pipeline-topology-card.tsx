@@ -2,9 +2,7 @@ import type { ComponentType, SVGProps } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowRight } from 'lucide-react'
 import {
-  StageDiagnosticsIcon,
   StageRecommendationsIcon,
-  StageRunbooksIcon,
   StageTriageIcon,
 } from '../../../shared/components/icons'
 import type { Provider, StepConfig, StepKeyInfo } from '../../../shared/types/settings'
@@ -12,16 +10,12 @@ import { ProviderLogo } from '../../settings/components/provider-logo'
 
 const STAGE_ICONS: Record<string, ComponentType<SVGProps<SVGSVGElement>>> = {
   triage: StageTriageIcon,
-  diagnostics: StageDiagnosticsIcon,
-  runbooks: StageRunbooksIcon,
-  recommendations: StageRecommendationsIcon,
+  diagnose: StageRecommendationsIcon,
 }
 
 const STAGE_TITLES: Record<string, string> = {
   triage: 'Alert Triage',
-  diagnostics: 'Cluster Diagnostics',
-  runbooks: 'Runbook Reasoning',
-  recommendations: 'Remediation Plan',
+  diagnose: 'Diagnosis',
 }
 
 interface PipelineTopologyCardProps {
@@ -48,7 +42,7 @@ export function PipelineTopologyCard({
             Agent Pipeline Topology
           </h2>
           <p className="text-[14px] text-neutral-500">
-            Active model routing across each stage of autonomous incident triage.
+            Active model routing across the two model-backed stages.
           </p>
         </div>
 
@@ -61,7 +55,7 @@ export function PipelineTopologyCard({
         </Link>
       </div>
 
-      <div className="grid gap-3.5 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-3.5 sm:grid-cols-2">
         {steps.map((step, index) => {
           const provider = providerMap[step.provider_id]
           const model = provider?.models.find((m) => m.id === step.model_id)

@@ -18,6 +18,7 @@ import {
   Skeleton,
 } from '@/components/ui'
 import { DeleteIncidentDialog } from './delete-incident-dialog'
+import { DiagnosisCard } from './diagnosis-card'
 
 interface IncidentDetailSheetProps {
   incidentId: string | null
@@ -36,7 +37,7 @@ export function IncidentDetailSheet({ incidentId, onClose }: IncidentDetailSheet
     },
   })
 
-  const nextSteps = incident ? extractRecommendedNextSteps(incident) : null
+  const analysis = incident?.analysis ?? null
 
   return (
     <Sheet open={incidentId != null} onOpenChange={(open) => !open && onClose()}>
@@ -101,26 +102,7 @@ export function IncidentDetailSheet({ incidentId, onClose }: IncidentDetailSheet
                 </div>
               )}
 
-              {nextSteps && nextSteps.length > 0 && (
-                <section>
-                  <h3 className="mb-3 text-[15px] font-semibold text-neutral-900">
-                    Recommended Remediation
-                  </h3>
-                  <ol className="divide-y divide-neutral-100 rounded-2xl border border-neutral-200/80 bg-neutral-50/40">
-                    {nextSteps.map((step, i) => (
-                      <li
-                        key={i}
-                        className="flex items-start gap-3.5 px-5 py-3.5 text-[14.5px] leading-relaxed text-neutral-800"
-                      >
-                        <span className="mt-0.5 shrink-0 font-medium text-neutral-400 tabular-nums">
-                          {i + 1}.
-                        </span>
-                        <span>{step}</span>
-                      </li>
-                    ))}
-                  </ol>
-                </section>
-              )}
+              {analysis && <DiagnosisCard diagnosis={analysis} />}
 
               <section>
                 <h3 className="mb-4 text-[15px] font-semibold text-neutral-900">
@@ -177,25 +159,4 @@ export function IncidentDetailSheet({ incidentId, onClose }: IncidentDetailSheet
       </SheetContent>
     </Sheet>
   )
-}
-
-function extractRecommendedNextSteps(
-  incident: NonNullable<ReturnType<typeof useIncidentDetail>['data']>,
-): string[] | null {
-  const persisted = incident.recommended_steps
-  if (Array.isArray(persisted) && persisted.every((s) => typeof s === 'string')) {
-    return persisted
-  }
-
-  for (const step of incident.steps) {
-    if (step.step_name !== 'context_gathering' && step.step_name !== 'gather_context') continue
-    const next = (
-      step.output_data as { context_summary?: { recommended_next_steps?: unknown } } | null
-    )?.context_summary?.recommended_next_steps
-    if (Array.isArray(next) && next.every((s) => typeof s === 'string')) {
-      return next as string[]
-    }
-  }
-
-  return null
 }
