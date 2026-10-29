@@ -166,12 +166,12 @@ async def test_login_fails_closed_when_rate_limit_backend_is_unavailable(
     api_client,
     monkeypatch,
 ):
-    _, pool = api_env
+    _, redis_client = api_env
 
     async def _unavailable(_key: str):
         raise ConnectionError("redis unavailable")
 
-    monkeypatch.setattr(pool, "get", _unavailable)
+    monkeypatch.setattr(redis_client, "get", _unavailable)
 
     response = await api_client.post(
         "/auth/login",

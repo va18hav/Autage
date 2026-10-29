@@ -81,7 +81,6 @@ SCENARIO_ALERTS = {
 )
 async def simulate_incident(
     payload: SimulateIncidentRequest,
-    request: Request,
     db: AsyncSession = Depends(get_db_session),
 ) -> dict:
     ts = int(time.time() * 1000)
@@ -101,12 +100,6 @@ async def simulate_incident(
     db.add(incident)
     await db.commit()
     await db.refresh(incident)
-
-    await request.app.state.arq_pool.enqueue_job(
-        "run_agent_task",
-        str(incident.id),
-        _job_id=f"incident:{incident.id}",
-    )
 
     return {
         "incident_id": str(incident.id),
@@ -175,7 +168,7 @@ async def stream_incident(
             yield f"data: {json.dumps({'type': event_type, 'status': incident.status, 'title': incident.title})}\n\n"
             return
 
-        pubsub = request.app.state.arq_pool.pubsub()
+        pubsub = request.app.state.redis.pubsub()
         await pubsub.subscribe(channel)
 
         try:

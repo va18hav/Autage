@@ -84,6 +84,10 @@ class InMemoryAsyncSession:
                 obj.id = uuid4()
             if not hasattr(obj, "steps") or obj.steps is None:
                 obj.steps = []
+            if obj.attempts is None:
+                obj.attempts = 0
+            if obj.next_attempt_at is None:
+                obj.next_attempt_at = now
             self.incidents[obj.id] = obj
         elif isinstance(obj, IncidentStep):
             if obj.id is None:
@@ -208,6 +212,10 @@ class InMemoryAsyncSession:
             matches = [u for u in self.users.values() if u.username == username]
             return FakeExecuteResult(matches)
 
+        # Incident step queries
+        if "FROM incident_steps" in sql:
+            return FakeExecuteResult(list(self.incident_steps.values()))
+
         # Incident queries
         if "FROM incidents" in sql:
             if "WHERE incidents.fingerprint =" in sql:
@@ -299,16 +307,17 @@ class FakePubSub:
         return None
 
 
-class FakeArqPool:
+class FakeRedis:
     def __init__(self, pubsub_messages: list[dict[str, Any]] | None = None):
-        self.enqueued: list[tuple[str, str, str | None]] = []
         self.pubsub_instance = FakePubSub(pubsub_messages)
+        self.published: list[tuple[str, str]] = []
         self.rate_counts: dict[str, int] = {}
         self.rate_expires: dict[str, float] = {}
         self.closed: bool = False
 
-    async def enqueue_job(self, func_name: str, incident_id: str, _job_id: str | None = None):
-        self.enqueued.append((func_name, incident_id, _job_id))
+    async def publish(self, channel: str, payload: str) -> int:
+        self.published.append((channel, payload))
+        return 1
 
     def pubsub(self) -> FakePubSub:
         return self.pubsub_instance
@@ -388,14 +397,14 @@ def in_memory_db(monkeypatch):
 
 @pytest.fixture
 def api_env(in_memory_db):
-    pool = FakeArqPool()
-    app.state.arq_pool = pool
+    redis_client = FakeRedis()
+    app.state.redis = redis_client
 
     async def _override_db():
         yield in_memory_db
 
     app.dependency_overrides[get_db_session] = _override_db
-    yield in_memory_db, pool
+    yield in_memory_db, redis_client
     app.dependency_overrides.clear()
 
 

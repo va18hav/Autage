@@ -9,7 +9,7 @@ from services.db.models.incident import IncidentStatus
 
 @pytest.mark.anyio
 async def test_simulate_list_detail_and_delete_incidents(api_env, authed_client):
-    session, pool = api_env
+    session, _ = api_env
 
     # 1. Simulate all supported scenarios
     for scenario in ("oomkill", "crashloop", "db_pool", "gateway_504"):
@@ -17,7 +17,7 @@ async def test_simulate_list_detail_and_delete_incidents(api_env, authed_client)
         assert res.status_code == 202
         assert res.json()["status"] == "PENDING"
 
-    assert len(pool.enqueued) == 4
+    assert len(session.incidents) == 4
 
     # 2. List incidents
     list_res = await authed_client.get("/incidents")
@@ -45,7 +45,7 @@ async def test_simulate_list_detail_and_delete_incidents(api_env, authed_client)
 
 @pytest.mark.anyio
 async def test_incident_sse_stream_completed_and_live_pubsub(api_env, authed_client, monkeypatch):
-    session, pool = api_env
+    session, redis_client = api_env
     monkeypatch.setattr(incident_routes_mod, "async_session_factory", session.factory)
 
     # Case 1: Incident already COMPLETED before stream opens
@@ -63,7 +63,7 @@ async def test_incident_sse_stream_completed_and_live_pubsub(api_env, authed_cli
     sim2 = await authed_client.post("/incidents/simulate", json={"scenario": "db_pool"})
     inc2_id = sim2.json()["incident_id"]
 
-    pool.pubsub_instance._messages = [
+    redis_client.pubsub_instance._messages = [
         {
             "type": "message",
             "data": json.dumps({"type": "step_complete", "node": "process_alert"}).encode(),
@@ -78,4 +78,4 @@ async def test_incident_sse_stream_completed_and_live_pubsub(api_env, authed_cli
     assert stream2.status_code == 200
     assert "step_complete" in stream2.text
     assert "incident_complete" in stream2.text
-    assert pool.pubsub_instance.closed is True
+    assert redis_client.pubsub_instance.closed is True

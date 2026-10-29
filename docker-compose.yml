@@ -60,7 +60,7 @@ services:
       dockerfile: Dockerfile
     container_name: autage-worker
     restart: unless-stopped
-    command: ["uv", "run", "arq", "services.worker.main.WorkerSettings"]
+    command: ["uv", "run", "python", "-m", "services.worker.main"]
     env_file:
       - path: .env
         required: false

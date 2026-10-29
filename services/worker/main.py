@@ -1,8 +1,14 @@
+import asyncio
 import json
-from arq.connections import RedisSettings
-from sqlalchemy import update
+import logging
+import signal
+from typing import Any
+from uuid import UUID
 
-from services.agent.state import AgentState
+import redis.asyncio as redis
+from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
+
+from services.agent.graph import builder
 from services.agent.llm import (
     LlmConfigError,
     LlmResolver,
@@ -10,151 +16,254 @@ from services.agent.llm import (
     set_resolver,
 )
 from services.agent.llm.resolver import friendly_error
+from services.agent.state import AgentState
 from services.config import settings
-
 from services.db.database import async_session_factory
 from services.db.models.incident import Incident, IncidentStatus
-from services.agent.graph import builder
+from services.worker import queue
 
-# Compile the graph
+logger = logging.getLogger("autage.worker")
+
+# Kept as a module-level default so tests can inject a graph. The real worker
+# replaces it with a checkpoint-enabled graph in main().
 agent_graph = builder.compile()
 
-async def run_agent_task(ctx, incident_id: str):
-    """
-    Dumb worker: Fetches the incident and kicks off the agent.
-    The agent nodes themselves will handle writing steps to the DB.
-    """
-    async with async_session_factory() as db:
-        incident = await db.get(Incident, incident_id)
-        if not incident:
-            print(f"Incident {incident_id} not found!")
-            return
 
-        # We pass both the raw alert and the incident_id into the graph state
-        # so the nodes know which incident to attach their DB steps to.
-        initial_state = {
-            "incident_id": str(incident.id),
-            "raw_alert": incident.raw_alert
-        }
-
-        #Mark as triaging
-        await db.execute(
-            update(Incident)
-            .where(Incident.id == incident_id)
-            .values(status=IncidentStatus.TRIAGING)
-        )
-        await db.commit()
-
-    channel = f"incident:{incident_id}:events"
-
-    await ctx["redis"].publish(
-        channel,
-        json.dumps({"type": "status", "status": "TRIAGING"}),
+def _has_checkpoint(snapshot: Any) -> bool:
+    return bool(
+        getattr(snapshot, "created_at", None)
+        or getattr(snapshot, "values", None)
+        or getattr(snapshot, "next", None)
     )
 
-    final_state = {}
 
-    # One resolver per run: step configs + credentials read from the DB once,
-    # then made available to every node via get_llm().
+async def _publish(redis_client: Any, channel: str, payload: dict) -> None:
+    await redis_client.publish(channel, json.dumps(payload, default=str))
+
+
+async def _handle_failure(
+    redis_client: Any,
+    incident_id: UUID,
+    error: str,
+    *,
+    terminal: bool = False,
+) -> None:
+    channel = f"incident:{incident_id}:events"
+
+    async with async_session_factory() as db:
+        incident = await db.get(Incident, incident_id)
+        if incident is None or incident.status in (
+            IncidentStatus.COMPLETED,
+            IncidentStatus.FAILED,
+        ):
+            return
+
+        attempts = incident.attempts or 0
+        if terminal or attempts >= settings.WORKER_MAX_ATTEMPTS:
+            await queue.mark_incident_failed(db, incident_id, error)
+            await _publish(
+                redis_client,
+                channel,
+                {
+                    "type": "incident_failed",
+                    "status": "FAILED",
+                    "error": error,
+                },
+            )
+            return
+
+        delay = settings.WORKER_RETRY_DELAY_SECONDS * max(1, attempts)
+        await queue.schedule_incident_retry(db, incident_id, error, delay)
+        await _publish(
+            redis_client,
+            channel,
+            {
+                "type": "status",
+                "status": "PENDING",
+                "error": error,
+            },
+        )
+
+
+async def run_agent_task(redis_client: Any, graph: Any, incident_id: str) -> None:
+    """Run or resume one incident graph and persist its terminal state."""
+    async with async_session_factory() as db:
+        incident = await db.get(Incident, incident_id)
+        if incident is None:
+            logger.warning("Incident %s not found", incident_id)
+            return
+
+        await queue.mark_interrupted_steps(db, incident.id)
+        initial_state: AgentState = {
+            "incident_id": str(incident.id),
+            "raw_alert": incident.raw_alert,
+        }
+        config = {"configurable": {"thread_id": str(incident.id)}}
+        snapshot = await graph.aget_state(config)
+        has_checkpoint = _has_checkpoint(snapshot)
+
+    channel = f"incident:{incident_id}:events"
+    await _publish(redis_client, channel, {"type": "status", "status": "TRIAGING"})
+
     resolver_token = None
-
     try:
         resolver = await LlmResolver.load()
         resolver_token = set_resolver(resolver)
 
-        # Stream async graph updates and publish each completed node to Redis Pub/Sub
-        async for chunk in agent_graph.astream(initial_state, stream_mode="updates"):
+        snapshot_values = dict(getattr(snapshot, "values", None) or {})
+        next_nodes = tuple(getattr(snapshot, "next", None) or ())
 
-            for node_name, node_output in chunk.items():
-                final_state.update(node_output)
-
-                await ctx["redis"].publish(
-                    channel,
-                    json.dumps(
+        if not has_checkpoint or next_nodes:
+            # None tells LangGraph to resume from the latest checkpoint. It is
+            # ignored for a fresh run, where initial_state supplies the input.
+            stream_input = None if has_checkpoint else initial_state
+            async for chunk in graph.astream(
+                stream_input,
+                config=config,
+                stream_mode="updates",
+                durability="sync",
+            ):
+                for node_name, node_output in chunk.items():
+                    snapshot_values.update(node_output)
+                    await _publish(
+                        redis_client,
+                        channel,
                         {
                             "type": "step_complete",
                             "node": node_name,
                             "data": node_output,
                         },
-                        default=str,
                     )
-                )
 
-        # The diagnosis is the primary result. Keep recommended_steps populated
-        # temporarily so existing dashboard versions still show the action list.
-        diagnosis = final_state.get("diagnosis")
+            snapshot = await graph.aget_state(config)
+            snapshot_values = dict(getattr(snapshot, "values", None) or {})
+
+        diagnosis = snapshot_values.get("diagnosis")
         if not isinstance(diagnosis, dict):
             raise RuntimeError("The agent completed without producing a diagnosis")
 
         recommended = diagnosis.get("recommended_steps") or []
-        incident_type = final_state.get("incident_type")
+        incident_type = snapshot_values.get("incident_type")
         incident_type_value = getattr(incident_type, "value", incident_type)
 
         async with async_session_factory() as db:
-            await db.execute(
-                update(Incident)
-                .where(Incident.id == incident_id)
-                .values(
-                    title=final_state.get("incident_title", incident.title),
-                    status=IncidentStatus.COMPLETED,
-                    incident_type=incident_type_value,
-                    analysis=diagnosis,
-                    recommended_steps=recommended,
-                )
+            await queue.mark_incident_completed(
+                db,
+                UUID(incident_id),
+                title=snapshot_values.get("incident_title", "Incident resolved"),
+                incident_type=incident_type_value,
+                analysis=diagnosis,
+                recommended_steps=recommended,
             )
-            await db.commit()
 
-        await ctx["redis"].publish(
+        await _publish(
+            redis_client,
             channel,
-            json.dumps({
+            {
                 "type": "incident_complete",
                 "status": "COMPLETED",
-                "title": final_state.get("incident_title"),
+                "title": snapshot_values.get("incident_title"),
                 "incident_type": incident_type_value,
                 "analysis": diagnosis,
                 "recommended_steps": recommended,
-            }, default=str)
+            },
         )
 
     except LlmConfigError as exc:
-        # Config problem (missing/unknown provider credential) — message is
-        # user-fixable, surface it verbatim to the dashboard.
-        print(f"Config error processing incident {incident_id}: {exc}")
-        await _fail_incident(ctx, channel, incident_id, error=str(exc))
+        logger.error("Config error processing incident %s: %s", incident_id, exc)
+        await _handle_failure(redis_client, UUID(incident_id), str(exc), terminal=True)
+
+    except asyncio.CancelledError:
+        # The checkpoint is already durable; the next claim resumes it.
         raise
 
     except Exception as exc:
         error = friendly_error(exc)
-        print(f"Error processing incident {incident_id}: {error}")
-        await _fail_incident(ctx, channel, incident_id, error=error)
-        raise
+        logger.exception("Error processing incident %s: %s", incident_id, error)
+        await _handle_failure(redis_client, UUID(incident_id), error)
 
     finally:
         if resolver_token is not None:
             reset_resolver(resolver_token)
 
 
-async def _fail_incident(ctx, channel: str, incident_id: str, error: str) -> None:
-    async with async_session_factory() as db:
-        await db.execute(
-            update(Incident)
-            .where(Incident.id == incident_id)
-            .values(status=IncidentStatus.FAILED)
-        )
-        await db.commit()
+async def worker_loop(
+    redis_client: Any,
+    graph: Any,
+    stop_event: asyncio.Event,
+) -> None:
+    while not stop_event.is_set():
+        async with async_session_factory() as db:
+            incident = await queue.claim_next_incident(
+                db,
+                settings.WORKER_MAX_ATTEMPTS,
+            )
 
-    await ctx["redis"].publish(
-        channel,
-        json.dumps({
-            "type": "incident_failed",
-            "status": "FAILED",
-            "error": error
-        })
+        if incident is None:
+            await asyncio.sleep(settings.WORKER_POLL_SECONDS)
+            continue
+
+        try:
+            await asyncio.wait_for(
+                run_agent_task(redis_client, graph, str(incident.id)),
+                timeout=settings.WORKER_JOB_TIMEOUT_SECONDS,
+            )
+        except asyncio.TimeoutError:
+            await _handle_failure(
+                redis_client,
+                incident.id,
+                "Worker timed out before the agent completed.",
+            )
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            logger.exception("Unhandled worker error for incident %s", incident.id)
+            await _handle_failure(
+                redis_client,
+                incident.id,
+                friendly_error(exc),
+            )
+
+
+async def main() -> None:
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s %(message)s",
     )
 
+    stop_event = asyncio.Event()
+    loop = asyncio.get_running_loop()
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        try:
+            loop.add_signal_handler(sig, stop_event.set)
+        except NotImplementedError:
+            pass
+
+    async with AsyncPostgresSaver.from_conn_string(
+        settings.psycopg_database_url
+    ) as checkpointer:
+        await checkpointer.setup()
+        graph = builder.compile(checkpointer=checkpointer)
+        redis_client = redis.from_url(settings.REDIS_URL, decode_responses=False)
+
+        try:
+            async with async_session_factory() as db:
+                released = await queue.release_interrupted_leases(db)
+                failed = await queue.fail_exhausted_incidents(
+                    db,
+                    settings.WORKER_MAX_ATTEMPTS,
+                )
+            if released:
+                logger.info("Released %s interrupted incident lease(s)", released)
+            if failed:
+                logger.warning("Marked %s exhausted incident(s) failed", len(failed))
+
+            logger.info("Worker started; polling Postgres for incidents")
+            await worker_loop(redis_client, graph, stop_event)
+        finally:
+            await redis_client.aclose()
+            logger.info("Worker stopped")
 
 
-class WorkerSettings:
-    functions = [run_agent_task]
-    redis_settings = RedisSettings.from_dsn(settings.REDIS_URL)
-    max_jobs = 10
+if __name__ == "__main__":
+    asyncio.run(main())

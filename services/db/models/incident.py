@@ -1,7 +1,18 @@
 import enum
 import uuid
+from datetime import datetime
 from typing import Any
-from sqlalchemy import Enum as SQLEnum, ForeignKey, String, Text
+from sqlalchemy import (
+    DateTime,
+    Enum as SQLEnum,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    func,
+    text,
+)
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from services.db.models.base import Base, TimestampMixin
@@ -14,6 +25,20 @@ class IncidentStatus(str, enum.Enum):
 
 class Incident(Base, TimestampMixin):
     __tablename__ = "incidents"
+    __table_args__ = (
+        Index(
+            "ix_incidents_pending_queue",
+            "next_attempt_at",
+            "created_at",
+            postgresql_where=text("status = 'PENDING'"),
+        ),
+        Index(
+            "ix_incidents_triaging_queue",
+            "locked_at",
+            "created_at",
+            postgresql_where=text("status = 'TRIAGING'"),
+        ),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
@@ -57,6 +82,28 @@ class Incident(Base, TimestampMixin):
     recommended_steps: Mapped[dict[str, Any] | None] = mapped_column(
         JSONB,
         nullable= True
+    )
+
+    # Postgres-backed work queue fields. PENDING incidents are claimable when
+    # next_attempt_at is due; TRIAGING incidents are resumable after a restart.
+    attempts: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=0,
+        server_default=text("0"),
+    )
+    next_attempt_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+    locked_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    last_error: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
     )
 
     steps: Mapped[list["IncidentStep"]] = relationship(
