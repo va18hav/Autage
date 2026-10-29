@@ -1,4 +1,5 @@
 import { ModelStepsCard } from './components/model-steps-card'
+import { PasswordCard } from './components/password-card'
 
 export function SettingsPage() {
   return (
@@ -8,10 +9,11 @@ export function SettingsPage() {
           Settings
         </h1>
         <p className="mt-1.5 text-[15px] text-neutral-500">
-          Assign configured AI providers and models to each stage of the incident response pipeline.
+          Manage account security and assign AI providers and models to the incident response pipeline.
         </p>
       </header>
       <ModelStepsCard />
+      <PasswordCard />
     </div>
   )
 }

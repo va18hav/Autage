@@ -12,7 +12,6 @@ import time
 import urllib.request
 import urllib.error
 
-from services.config import settings
 from services.http.routes.settings import WEBHOOK_SECRET_PURPOSE
 from services.http.verify_webhook import compute_hmac_signature
 from services.secrets.store import SecretStore
@@ -21,11 +20,19 @@ from services.secrets.store import SecretStore
 async def _get_active_secret() -> str:
     try:
         payload = await SecretStore.fetch_payload(WEBHOOK_SECRET_PURPOSE)
-        if payload and payload.get("secret"):
-            return str(payload["secret"])
-    except Exception:
-        pass
-    return settings.WEBHOOK_SECRET
+    except Exception as exc:
+        raise RuntimeError(
+            "Could not read the webhook secret from the database. "
+            "Check the database configuration and try again."
+        ) from exc
+
+    if payload and payload.get("secret"):
+        return str(payload["secret"])
+
+    raise RuntimeError(
+        "No webhook secret is configured. Open Settings → Integrations and "
+        "generate a webhook secret before sending an alert."
+    )
 
 
 def _pick_live_pod(namespace: str, deployment: str) -> str | None:

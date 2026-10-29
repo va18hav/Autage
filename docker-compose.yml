@@ -5,7 +5,7 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: autage
-      POSTGRES_PASSWORD: autage_password
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set in .env}
       POSTGRES_DB: autage
     ports:
       - "5432:5432"
@@ -42,7 +42,7 @@ services:
       DB_HOST: db
       DB_PORT: 5432
       DB_USER: autage
-      DB_PASSWORD: autage_password
+      DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set in .env}
       DB_NAME: autage
       REDIS_URL: redis://redis:6379/0
       CORS_ORIGINS: http://localhost:5173,http://127.0.0.1:5173
@@ -68,7 +68,7 @@ services:
       DB_HOST: db
       DB_PORT: 5432
       DB_USER: autage
-      DB_PASSWORD: autage_password
+      DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set in .env}
       DB_NAME: autage
       REDIS_URL: redis://redis:6379/0
     depends_on:

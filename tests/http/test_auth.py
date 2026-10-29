@@ -4,9 +4,11 @@ import pytest
 from fastapi import HTTPException, Response
 from starlette.requests import Request
 
+from services.config import settings
 from services.db.models.user import User
 from services.http.auth import (
     COOKIE_NAME,
+    _jwt_secret,
     clear_auth_cookie,
     create_access_token,
     decode_access_token,
@@ -33,9 +35,15 @@ def test_password_hash_and_verify():
     hashed = hash_password(pw)
 
     assert hashed != pw
+    assert hashed.startswith("$2b$12$")
     assert verify_password(pw, hashed) is True
     assert verify_password("wrong-password", hashed) is False
     assert verify_password(pw, "not-a-valid-bcrypt-hash") is False
+
+
+def test_jwt_uses_only_the_dedicated_signing_key():
+    assert _jwt_secret() == settings.JWT_SECRET_KEY
+    assert _jwt_secret() != settings.AUTAGE_SECRET_KEY
 
 
 def test_jwt_create_and_decode_roundtrip():
@@ -48,6 +56,7 @@ def test_jwt_create_and_decode_roundtrip():
     assert claims["username"] == "sre_admin"
     assert "exp" in claims
     assert "iat" in claims
+    assert claims["exp"] - claims["iat"] == settings.JWT_EXPIRE_MINUTES * 60
     assert decode_access_token("tampered.jwt.token") is None
 
 

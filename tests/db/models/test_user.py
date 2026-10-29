@@ -10,3 +10,6 @@ def test_user_model_definition():
     )
     assert user.username == "admin"
     assert user.name == "Admin User"
+    constraint_names = {c.name for c in User.__table__.constraints}
+    assert "uq_users_single_instance" in constraint_names
+    assert "ck_users_single_instance_key" in constraint_names
