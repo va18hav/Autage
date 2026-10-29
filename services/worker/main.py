@@ -80,9 +80,15 @@ async def run_agent_task(ctx, incident_id: str):
                     )
                 )
 
-        # Final recommended steps come from the dedicated node (list of steps);
-        # published and persisted so the dashboard renders the numbered list.
-        recommended = final_state.get("recommended_steps")
+        # The diagnosis is the primary result. Keep recommended_steps populated
+        # temporarily so existing dashboard versions still show the action list.
+        diagnosis = final_state.get("diagnosis")
+        if not isinstance(diagnosis, dict):
+            raise RuntimeError("The agent completed without producing a diagnosis")
+
+        recommended = diagnosis.get("recommended_steps") or []
+        incident_type = final_state.get("incident_type")
+        incident_type_value = getattr(incident_type, "value", incident_type)
 
         async with async_session_factory() as db:
             await db.execute(
@@ -91,6 +97,8 @@ async def run_agent_task(ctx, incident_id: str):
                 .values(
                     title=final_state.get("incident_title", incident.title),
                     status=IncidentStatus.COMPLETED,
+                    incident_type=incident_type_value,
+                    analysis=diagnosis,
                     recommended_steps=recommended,
                 )
             )
@@ -102,6 +110,8 @@ async def run_agent_task(ctx, incident_id: str):
                 "type": "incident_complete",
                 "status": "COMPLETED",
                 "title": final_state.get("incident_title"),
+                "incident_type": incident_type_value,
+                "analysis": diagnosis,
                 "recommended_steps": recommended,
             }, default=str)
         )
