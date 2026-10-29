@@ -8,12 +8,12 @@ from services.http.schemas.settings import (
 
 @pytest.mark.anyio
 async def test_provider_catalog_and_llm_step_settings(authed_client):
-    # 1. Provider catalog lists all 5 providers and 4 pipeline steps
+    # 1. Provider catalog lists all 5 providers and 2 model-backed steps
     cat_res = await authed_client.get("/settings/providers")
     assert cat_res.status_code == 200
     provider_ids = {p["id"] for p in cat_res.json()["providers"]}
     assert provider_ids == {"google", "openai", "anthropic", "openrouter", "ollama"}
-    assert len(cat_res.json()["steps"]) == 4
+    assert len(cat_res.json()["steps"]) == 2
 
     # 2. Empty payload or duplicate step keys rejected with 400
     assert (await authed_client.put("/settings/llm", json=[])).status_code == 400
@@ -102,7 +102,7 @@ async def test_live_model_discovery_paths(authed_client, monkeypatch):
     monkeypatch.setattr(settings_routes_mod.model_discovery, "list_models_live", broken)
     put_fallback = await authed_client.put(
         "/settings/llm",
-        json=[{"step_key": "diagnostics", "provider_id": "openai", "model_id": "whatever-model"}],
+        json=[{"step_key": "diagnose", "provider_id": "openai", "model_id": "whatever-model"}],
     )
     assert put_fallback.status_code == 200
 

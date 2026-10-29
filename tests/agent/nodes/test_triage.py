@@ -5,6 +5,7 @@ import pytest
 import services.agent.nodes.trace_step as trace_step_mod
 import services.agent.nodes.triage as triage_mod
 from services.agent.nodes.triage import AlertTriage, Severity, process_alert
+from services.agent.playbooks import IncidentType
 from tests.conftest import InMemoryAsyncSession
 
 
@@ -34,6 +35,9 @@ async def test_process_alert_node(monkeypatch):
         description="Pod memory exceeded 99% and crashed with OOMKilled.",
         severity=Severity.P1,
         summary="Production auth-service is crash-looping due to OOM.",
+        incident_type=IncidentType.CRASH_LOOP,
+        namespace="production",
+        deployment_name="auth-service",
     )
     monkeypatch.setattr(triage_mod, "get_llm", lambda _step: _FakeLLM(expected))
 
@@ -46,4 +50,6 @@ async def test_process_alert_node(monkeypatch):
 
     assert result["incident_title"] == "Auth Service Memory Exhaustion"
     assert result["severity"] == Severity.P1
+    assert result["incident_type"] == IncidentType.CRASH_LOOP
+    assert result["deployment_name"] == "auth-service"
     assert "OOM" in result["summary"]

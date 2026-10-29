@@ -161,6 +161,10 @@ class InMemoryAsyncSession:
                     inc.status = params["status"]
                 if "title" in params:
                     inc.title = params["title"]
+                if "incident_type" in params:
+                    inc.incident_type = params["incident_type"]
+                if "analysis" in params:
+                    inc.analysis = params["analysis"]
                 if "recommended_steps" in params:
                     inc.recommended_steps = params["recommended_steps"]
             return FakeExecuteResult([])

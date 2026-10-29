@@ -5,6 +5,7 @@ import pytest
 
 import services.worker.main as worker_mod
 from services.agent.llm import LlmConfigError, LlmResolver
+from services.agent.playbooks import IncidentType
 from services.db.models.incident import Incident, IncidentStatus
 from services.worker.main import WorkerSettings, run_agent_task
 from tests.conftest import InMemoryAsyncSession
@@ -49,10 +50,25 @@ async def test_worker_run_agent_task_completes_and_publishes_events(monkeypatch)
     )
     session.add(inc)
 
+    diagnosis = {
+        "what_happened": "The auth-service container restarted repeatedly.",
+        "likely_cause": "The container exceeded its memory limit.",
+        "confidence": "high",
+        "what_i_found": "The previous container exited with code 137.",
+        "missing_information": [],
+        "recommended_steps": ["Step 1: Rollback", "Step 2: Verify"],
+    }
+
     fake_graph = _FakeGraph(
         chunks=[
-            {"process_alert": {"incident_title": "OOMKill on auth-service", "severity": "P1"}},
-            {"recommended_steps": {"recommended_steps": ["Step 1: Rollback", "Step 2: Verify"]}},
+            {
+                "triage": {
+                    "incident_title": "OOMKill on auth-service",
+                    "severity": "P1",
+                    "incident_type": IncidentType.CRASH_LOOP,
+                }
+            },
+            {"diagnose": {"diagnosis": diagnosis}},
         ]
     )
     monkeypatch.setattr(worker_mod, "agent_graph", fake_graph)
@@ -64,10 +80,17 @@ async def test_worker_run_agent_task_completes_and_publishes_events(monkeypatch)
 
     assert inc.status == IncidentStatus.COMPLETED
     assert inc.title == "OOMKill on auth-service"
-    assert inc.recommended_steps == ["Step 1: Rollback", "Step 2: Verify"]
+    assert inc.incident_type == "crash_loop"
+    assert inc.analysis == diagnosis
+    assert inc.recommended_steps == diagnosis["recommended_steps"]
 
     event_types = [msg["type"] for _, msg in redis_pub.published]
     assert event_types == ["status", "step_complete", "step_complete", "incident_complete"]
+
+    complete_event = redis_pub.published[-1][1]
+    assert complete_event["analysis"] == diagnosis
+    assert complete_event["incident_type"] == "crash_loop"
+    assert complete_event["recommended_steps"] == diagnosis["recommended_steps"]
 
 
 @pytest.mark.anyio

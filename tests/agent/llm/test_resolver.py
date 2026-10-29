@@ -35,7 +35,7 @@ async def test_llm_resolver_load_from_db_and_env_fallback(in_memory_db, monkeypa
 
     assert described[StepKey.TRIAGE].provider_id == "openai"
     assert described[StepKey.TRIAGE].is_default is False
-    assert described[StepKey.RECOMMENDATIONS].is_default is True
+    assert described[StepKey.DIAGNOSE].is_default is True
 
     token = set_resolver(resolver)
     try:
@@ -60,8 +60,8 @@ def test_llm_resolver_error_cases():
                 max_output_tokens=None,
                 is_default=False,
             ),
-            StepKey.DIAGNOSTICS: StepSelection(
-                step_key=StepKey.DIAGNOSTICS,
+            StepKey.DIAGNOSE: StepSelection(
+                step_key=StepKey.DIAGNOSE,
                 provider_id="anthropic",
                 model_id="claude-sonnet-5-5",
                 temperature=None,
@@ -79,7 +79,7 @@ def test_llm_resolver_error_cases():
         resolver.get_llm(StepKey.TRIAGE)
 
     with pytest.raises(LlmConfigError, match="No valid credential"):
-        resolver.get_llm(StepKey.DIAGNOSTICS)
+        resolver.get_llm(StepKey.DIAGNOSE)
 
 
 def test_friendly_error_formats_auth_and_generic_exceptions():
