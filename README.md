@@ -143,8 +143,16 @@ Start PostgreSQL, Redis, FastAPI, the ARQ worker, and the React dashboard in a s
 
 ```bash
 cp .env.example .env
-# Generate a Fernet master key and set AUTAGE_SECRET_KEY in .env:
+# Required: generate a Fernet credential-encryption key for AUTAGE_SECRET_KEY.
 python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+# Required: generate a separate JWT signing key for JWT_SECRET_KEY.
+python3 -c "import secrets; print(secrets.token_urlsafe(48))"
+# Required: generate a strong database password for DB_PASSWORD.
+python3 -c "import secrets; print(secrets.token_urlsafe(32))"
+# Required for first-user setup and password recovery: generate AUTAGE_SETUP_TOKEN.
+# Keep it secret; the same token resets the admin password if forgotten.
+python3 -c "import secrets; print(secrets.token_urlsafe(48))"
+# The app and Compose refuse to start unless required values are set.
 
 docker compose up --build
 
@@ -155,7 +163,7 @@ bash scripts/setup_kind_cluster.sh
 
 Then open `http://localhost:5173`:
 
-1. Complete the one-time account registration screen.
+1. Complete the one-time account registration screen using the `AUTAGE_SETUP_TOKEN` value from `.env`. Keep the token: it is also used from **Forgot password?** on the login screen to reset the administrator password.
 2. Walk through the 5-step **Onboarding** flow:
    - **Step 1 — Alert Webhook & Secret**: Copy the dynamic webhook URL (`${VITE_API_URL}/webhooks/alert`) and generate your HMAC signing secret.
    - **Step 2 — AI Model Providers**: Add at least one provider API key (`Google Gemini`, `OpenAI`, `Anthropic`, `OpenRouter`, or `Ollama`). Model lists are fetched live from each provider once a key is saved.

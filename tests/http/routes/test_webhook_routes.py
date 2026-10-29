@@ -2,18 +2,30 @@ from uuid import UUID
 
 import pytest
 
-from services.config import settings
 from services.db.models.incident import IncidentStatus
 from services.http.verify_webhook import compute_hmac_signature
 from services.secrets.store import SecretStore
 
 
 @pytest.mark.anyio
-async def test_webhook_rejects_missing_or_invalid_signature(api_client):
+async def test_webhook_requires_a_configured_secret(api_client):
+    body = b'{"source":"datadog","service":"auth-service"}'
+
+    response = await api_client.post("/webhooks/alert", content=body)
+
+    assert response.status_code == 401
+    assert "secret not configured" in response.json()["detail"]
+
+
+@pytest.mark.anyio
+async def test_webhook_rejects_missing_or_invalid_signature(api_env, api_client):
+    db_secret = "whsec_custom_db_secret_for_signature_test"
+    await SecretStore.save("webhook_secret", {"secret": db_secret}, "whsec_…_test")
     body = b'{"source":"datadog","service":"auth-service"}'
 
     no_sig = await api_client.post("/webhooks/alert", content=body)
     assert no_sig.status_code == 401
+    assert no_sig.json()["detail"] == "Invalid webhook signature"
 
     bad_sig = await api_client.post(
         "/webhooks/alert",
@@ -21,12 +33,16 @@ async def test_webhook_rejects_missing_or_invalid_signature(api_client):
         headers={"X-Hub-Signature-256": "sha256=invalid"},
     )
     assert bad_sig.status_code == 401
+    assert bad_sig.json()["detail"] == "Invalid webhook signature"
 
 
 @pytest.mark.anyio
-async def test_webhook_rejects_malformed_json(api_client):
+async def test_webhook_rejects_malformed_json(api_env, api_client):
+    db_secret = "whsec_custom_db_secret_for_malformed_json"
+    await SecretStore.save("webhook_secret", {"secret": db_secret}, "whsec_…_json")
+
     raw_bad = b"{malformed-json"
-    sig = compute_hmac_signature(raw_bad, settings.WEBHOOK_SECRET)
+    sig = compute_hmac_signature(raw_bad, db_secret)
 
     res = await api_client.post(
         "/webhooks/alert",
@@ -38,10 +54,10 @@ async def test_webhook_rejects_malformed_json(api_client):
 
 
 @pytest.mark.anyio
-async def test_webhook_db_secret_precedence_and_active_deduplication(api_env, api_client):
+async def test_webhook_requires_db_secret_and_active_deduplication(api_env, api_client):
     session, pool = api_env
 
-    # Store a custom webhook secret in the DB credential store
+    # Store the webhook secret in the DB credential store
     db_secret = "whsec_custom_db_secret_999"
     await SecretStore.save("webhook_secret", {"secret": db_secret}, "whsec_…_999")
 

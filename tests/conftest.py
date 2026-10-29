@@ -1,10 +1,22 @@
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
+import math
+import os
+import secrets
+import time
 from typing import Any
 from uuid import UUID, uuid4
 
+from cryptography.fernet import Fernet
 import httpx
 import pytest
+
+# Tests must never use a developer's real database, encryption, or JWT secrets.
+TEST_SETUP_TOKEN = "test-setup-token-that-is-longer-than-32-characters"
+os.environ["DB_PASSWORD"] = "test-db-password"
+os.environ["AUTAGE_SECRET_KEY"] = Fernet.generate_key().decode()
+os.environ["JWT_SECRET_KEY"] = secrets.token_urlsafe(48)
+os.environ["AUTAGE_SETUP_TOKEN"] = TEST_SETUP_TOKEN
 
 from services.db.database import get_db_session
 from services.db.models.credentials import Credential, LlmStepConfig
@@ -12,6 +24,7 @@ from services.db.models.incident import Incident, IncidentStatus, IncidentStep
 from services.db.models.runbooks import Runbook, RunbookSection
 from services.db.models.user import User
 from services.http.app import app
+from services.http.csrf import CSRF_COOKIE_NAME, CSRF_HEADER_NAME, SAFE_METHODS
 from services.secrets.crypto import _decrypt_payload, encrypt_payload
 from services.secrets.store import SecretStore
 
@@ -54,6 +67,7 @@ class InMemoryAsyncSession:
         self.credentials: dict[str, Credential] = {}
         self.llm_steps: dict[str, LlmStepConfig] = {}
         self.closed: bool = False
+        self.rolled_back: bool = False
 
     def add(self, obj: Any) -> None:
         now = datetime.now(timezone.utc)
@@ -132,6 +146,9 @@ class InMemoryAsyncSession:
     async def commit(self) -> None:
         pass
 
+    async def rollback(self) -> None:
+        self.rolled_back = True
+
     async def close(self) -> None:
         self.closed = True
 
@@ -185,6 +202,8 @@ class InMemoryAsyncSession:
         if "FROM users" in sql:
             if "count(" in sql.lower():
                 return FakeExecuteResult([len(self.users)])
+            if not params:
+                return FakeExecuteResult(list(self.users.values()))
             username = next(iter(params.values()), None)
             matches = [u for u in self.users.values() if u.username == username]
             return FakeExecuteResult(matches)
@@ -284,6 +303,8 @@ class FakeArqPool:
     def __init__(self, pubsub_messages: list[dict[str, Any]] | None = None):
         self.enqueued: list[tuple[str, str, str | None]] = []
         self.pubsub_instance = FakePubSub(pubsub_messages)
+        self.rate_counts: dict[str, int] = {}
+        self.rate_expires: dict[str, float] = {}
         self.closed: bool = False
 
     async def enqueue_job(self, func_name: str, incident_id: str, _job_id: str | None = None):
@@ -291,6 +312,43 @@ class FakeArqPool:
 
     def pubsub(self) -> FakePubSub:
         return self.pubsub_instance
+
+    def _purge_expired(self, key: str) -> None:
+        deadline = self.rate_expires.get(key)
+        if deadline is not None and deadline <= time.monotonic():
+            self.rate_counts.pop(key, None)
+            self.rate_expires.pop(key, None)
+
+    async def get(self, key: str) -> int | None:
+        self._purge_expired(key)
+        return self.rate_counts.get(key)
+
+    async def incr(self, key: str) -> int:
+        self._purge_expired(key)
+        self.rate_counts[key] = self.rate_counts.get(key, 0) + 1
+        return self.rate_counts[key]
+
+    async def expire(self, key: str, seconds: int, nx: bool = False) -> bool:
+        self._purge_expired(key)
+        if nx and key in self.rate_expires:
+            return False
+        self.rate_expires[key] = time.monotonic() + seconds
+        return True
+
+    async def ttl(self, key: str) -> int:
+        self._purge_expired(key)
+        if key not in self.rate_counts:
+            return -2
+        deadline = self.rate_expires.get(key)
+        if deadline is None:
+            return -1
+        return max(0, math.ceil(deadline - time.monotonic()))
+
+    async def delete(self, key: str) -> int:
+        existed = key in self.rate_counts
+        self.rate_counts.pop(key, None)
+        self.rate_expires.pop(key, None)
+        return int(existed)
 
     async def aclose(self) -> None:
         self.closed = True
@@ -341,10 +399,30 @@ def api_env(in_memory_db):
     app.dependency_overrides.clear()
 
 
+class CsrfAwareAsyncClient(httpx.AsyncClient):
+    """Test client that behaves like the dashboard by copying the CSRF cookie to a header."""
+
+    auto_csrf: bool = True
+
+    async def send(self, request: httpx.Request, **kwargs: Any) -> httpx.Response:
+        if (
+            self.auto_csrf
+            and request.method.upper() not in SAFE_METHODS
+            and CSRF_HEADER_NAME not in request.headers
+        ):
+            token = self.cookies.get(CSRF_COOKIE_NAME)
+            if token:
+                request.headers[CSRF_HEADER_NAME] = token
+        return await super().send(request, **kwargs)
+
+
 @pytest.fixture
 async def api_client(api_env):
     transport = httpx.ASGITransport(app=app)
-    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+    async with CsrfAwareAsyncClient(
+        transport=transport,
+        base_url="http://test",
+    ) as client:
         yield client
 
 
@@ -352,6 +430,7 @@ async def api_client(api_env):
 async def authed_client(api_client):
     await api_client.post(
         "/auth/register",
+        headers={"X-Autage-Setup-Token": TEST_SETUP_TOKEN},
         json={
             "name": "Ada Lovelace",
             "username": "ada",

@@ -8,12 +8,17 @@ from pydantic import BaseModel, ConfigDict, Field
 class RegisterRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=120)
     username: str = Field(..., min_length=2, max_length=64)
-    password: str = Field(..., min_length=6, max_length=128)
+    password: str = Field(..., min_length=12, max_length=128)
 
 
 class LoginRequest(BaseModel):
     username: str = Field(..., min_length=1, max_length=64)
     password: str = Field(..., min_length=1, max_length=128)
+
+
+class PasswordResetRequest(BaseModel):
+    new_password: str = Field(..., min_length=12, max_length=128)
+    confirm_password: str = Field(..., min_length=12, max_length=128)
 
 
 class UserOut(BaseModel):

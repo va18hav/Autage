@@ -5,7 +5,6 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
-from services.config import settings
 from services.db.database import get_db_session
 from services.db.models.incident import Incident, IncidentStatus
 from services.http.routes.settings import WEBHOOK_SECRET_PURPOSE
@@ -19,7 +18,7 @@ async def _resolve_webhook_secret() -> str | None:
     payload = await SecretStore.fetch_payload(WEBHOOK_SECRET_PURPOSE)
     if payload and payload.get("secret"):
         return str(payload["secret"])
-    return settings.WEBHOOK_SECRET or None
+    return None
 
 
 @router.post(
@@ -35,7 +34,7 @@ async def receive_webhook(
     # HMAC verification requires the exact original bytes, not a re-serialised dict
     payload = await request.body()
 
-    # ── 2. Verify HMAC signature against DB credential (fallback to env) ─────
+    # ── 2. Verify HMAC signature against the DB-configured secret ─────────────
     active_secret = await _resolve_webhook_secret()
     if not active_secret:
         raise HTTPException(

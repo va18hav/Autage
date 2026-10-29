@@ -1,4 +1,3 @@
-import warnings
 import pytest
 from cryptography.fernet import Fernet
 
@@ -55,14 +54,11 @@ async def test_decrypt_payload_decorator_sync_and_async():
     assert await fetch_async() == expected
 
 
-def test_ephemeral_fernet_key_warns_when_master_key_unset(monkeypatch):
+def test_fernet_rejects_missing_master_key_instead_of_generating_one(monkeypatch):
     monkeypatch.setattr(crypto_mod, "_fernet", None)
     monkeypatch.setattr(crypto_mod.settings, "AUTAGE_SECRET_KEY", "")
 
-    with warnings.catch_warnings(record=True) as caught:
-        warnings.simplefilter("always")
-        f = crypto_mod._get_fernet()
-        assert isinstance(f, Fernet)
-        assert any("AUTAGE_SECRET_KEY is not set" in str(w.message) for w in caught)
+    with pytest.raises(RuntimeError, match="AUTAGE_SECRET_KEY is required"):
+        crypto_mod._get_fernet()
 
     monkeypatch.setattr(crypto_mod, "_fernet", None)

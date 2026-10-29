@@ -12,19 +12,15 @@ from services.db.models.user import User
 
 COOKIE_NAME = "autage_token"
 JWT_ALGORITHM = "HS256"
+BCRYPT_ROUNDS = 12
 
 
 def _jwt_secret() -> str:
-    secret = (
-        settings.JWT_SECRET_KEY
-        or settings.AUTAGE_SECRET_KEY
-        or settings.WEBHOOK_SECRET
-    )
-    return secret
+    return settings.JWT_SECRET_KEY
 
 
 def hash_password(password: str) -> str:
-    salt = bcrypt.gensalt()
+    salt = bcrypt.gensalt(rounds=BCRYPT_ROUNDS)
     return bcrypt.hashpw(password.encode("utf-8"), salt).decode("utf-8")
 
 
