@@ -1,4 +1,10 @@
-import type { AuthStatus, AuthUser, LoginPayload, RegisterPayload } from '../types/auth'
+import type {
+  AuthStatus,
+  AuthUser,
+  LoginPayload,
+  PasswordResetPayload,
+  RegisterPayload,
+} from '../types/auth'
 import type { IncidentDetail, IncidentSummary, SseEvent } from '../types/incident'
 import type { RunbookCreate, RunbookDetail, RunbookSummary } from '../types/runbook'
 import type {
@@ -15,6 +21,26 @@ import { API_URL } from './config'
 import { queryClient, queryKeys } from './query-client'
 
 const BASE_URL = API_URL || '/api'
+const CSRF_COOKIE = 'autage_csrf'
+const CSRF_HEADER = 'X-CSRF-Token'
+const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS', 'TRACE'])
+
+function readCookie(name: string): string | null {
+  if (typeof document === 'undefined') return null
+
+  const prefix = `${name}=`
+  for (const part of document.cookie.split(';')) {
+    const entry = part.trim()
+    if (entry.startsWith(prefix)) {
+      try {
+        return decodeURIComponent(entry.slice(prefix.length))
+      } catch {
+        return null
+      }
+    }
+  }
+  return null
+}
 
 export class ApiError extends Error {
   readonly status: number
@@ -27,10 +53,17 @@ export class ApiError extends Error {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const method = (init?.method ?? 'GET').toUpperCase()
+  const csrfToken = SAFE_METHODS.has(method) ? null : readCookie(CSRF_COOKIE)
+
   const response = await fetch(`${BASE_URL}${path}`, {
     ...init,
     credentials: 'include',
-    headers: { 'Content-Type': 'application/json', ...init?.headers },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(csrfToken ? { [CSRF_HEADER]: csrfToken } : {}),
+      ...init?.headers,
+    },
   })
 
   if (!response.ok) {
@@ -62,15 +95,23 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 export const authApi = {
   status: () => request<AuthStatus>('/auth/status'),
 
-  register: (payload: RegisterPayload) =>
+  register: (payload: RegisterPayload, setupToken: string) =>
     request<AuthUser>('/auth/register', {
       method: 'POST',
+      headers: { 'X-Autage-Setup-Token': setupToken },
       body: JSON.stringify(payload),
     }),
 
   login: (payload: LoginPayload) =>
     request<AuthUser>('/auth/login', {
       method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  resetPassword: (payload: PasswordResetPayload, setupToken: string) =>
+    request<void>('/auth/reset-password', {
+      method: 'POST',
+      headers: { 'X-Autage-Setup-Token': setupToken },
       body: JSON.stringify(payload),
     }),
 

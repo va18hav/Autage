@@ -21,3 +21,8 @@ export interface LoginPayload {
   username: string
   password: string
 }
+
+export interface PasswordResetPayload {
+  new_password: string
+  confirm_password: string
+}
