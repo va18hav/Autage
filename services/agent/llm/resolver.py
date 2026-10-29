@@ -25,16 +25,12 @@ class LlmConfigError(RuntimeError):
 
 class StepKey(str, Enum):
     TRIAGE = "triage"
-    DIAGNOSTICS = "diagnostics"
-    RUNBOOKS = "runbooks"
-    RECOMMENDATIONS = "recommendations"
+    DIAGNOSE = "diagnose"
 
 
 STEP_LABELS: dict[str, str] = {
     StepKey.TRIAGE: "Triage",
-    StepKey.DIAGNOSTICS: "Diagnostics (log planning + summary)",
-    StepKey.RUNBOOKS: "Runbook reasoning",
-    StepKey.RECOMMENDATIONS: "Recommended steps",
+    StepKey.DIAGNOSE: "Diagnosis",
 }
 
 # Legacy bridge: a provider whose key only lives in .env still works even
