@@ -7,15 +7,9 @@ import type { LiveStep } from '../../incident/store/incident-live-store'
 
 const STEP_LABELS: Record<string, string> = {
   triage: 'Triage & Classification',
-  process_alert: 'Triage & Classification',
-  route_p1: 'Route P1 Critical',
-  route_p2: 'Route P2 Standard',
-  route_p3: 'Route P3 Low Severity',
-  fetch_logs: 'Cluster Diagnostics (kubectl)',
-  context_gathering: 'Context Gathering & Diagnostics',
-  gather_context: 'Context Gathering & Diagnostics',
-  refer_runbooks: 'Runbook Retrieval',
-  recommended_steps: 'Remediation Synthesis',
+  collect_evidence: 'Evidence Collection',
+  find_runbook: 'Runbook Lookup',
+  diagnose: 'Diagnosis',
 }
 
 export function StepTimeline({ steps }: { steps: IncidentStep[] }) {

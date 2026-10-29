@@ -17,7 +17,7 @@ const STATUS_STYLES: Record<
     pulse: true,
   },
   COMPLETED: {
-    label: 'Resolved',
+    label: 'Analysis complete',
     className: 'bg-emerald-50 text-emerald-800 ring-1 ring-emerald-200/70',
     dot: 'bg-emerald-500',
   },

@@ -1,5 +1,10 @@
 import { create } from 'zustand'
-import type { ContextSummary, SseEvent, StepStatus } from '../../../shared/types/incident'
+import type {
+  Diagnosis,
+  IncidentType,
+  SseEvent,
+  StepStatus,
+} from '../../../shared/types/incident'
 
 export interface LiveStep {
   id: string
@@ -12,43 +17,57 @@ export interface LiveStep {
 
 interface IncidentLiveState {
   incidentTitle: string | null
+  incidentType: IncidentType | null
   status: string
   steps: LiveStep[]
-  contextSummary: ContextSummary | null
-  recommendedNextSteps: string[] | null
+  analysis: Diagnosis | null
   errorMessage: string | null
   isComplete: boolean
   applyEvent: (event: SseEvent) => void
   hydrate: (payload: {
     title: string
     status: string
+    incidentType: IncidentType | null
     steps: LiveStep[]
-    contextSummary: ContextSummary | null
-    recommendedNextSteps: string[] | null
+    analysis: Diagnosis | null
   }) => void
   reset: () => void
 }
 
 const INITIAL = {
   incidentTitle: null,
+  incidentType: null as IncidentType | null,
   status: 'PENDING',
   steps: [] as LiveStep[],
-  contextSummary: null,
-  recommendedNextSteps: null as string[] | null,
+  analysis: null as Diagnosis | null,
   errorMessage: null,
   isComplete: false,
 }
 
-// The worker publishes SSE events under the graph node name, while the DB
-// step rows use the decorator step_name. Map node names onto their step_name
-// so SSE updates and hydrated rows are treated as the same step.
-const CANONICAL_NAMES: Record<string, string> = {
-  process_alert: 'triage',
-  gather_context: 'fetch_logs',
-  context_gathering: 'fetch_logs',
+const CONFIDENCE_VALUES = new Set(['low', 'medium', 'high'])
+
+function asIncidentType(value: unknown): IncidentType | null {
+  return value === 'crash_loop' || value === 'bad_deployment' || value === 'other'
+    ? value
+    : null
 }
 
-const canonicalName = (name: string) => CANONICAL_NAMES[name] ?? name
+function isDiagnosis(value: unknown): value is Diagnosis {
+  if (!value || typeof value !== 'object') return false
+  const diagnosis = value as Record<string, unknown>
+
+  return (
+    typeof diagnosis.what_happened === 'string' &&
+    typeof diagnosis.likely_cause === 'string' &&
+    typeof diagnosis.confidence === 'string' &&
+    CONFIDENCE_VALUES.has(diagnosis.confidence) &&
+    typeof diagnosis.what_i_found === 'string' &&
+    Array.isArray(diagnosis.missing_information) &&
+    diagnosis.missing_information.every((item) => typeof item === 'string') &&
+    Array.isArray(diagnosis.recommended_steps) &&
+    diagnosis.recommended_steps.every((item) => typeof item === 'string')
+  )
+}
 
 // Higher = further progressed. Used when merging a (possibly stale) hydrated
 // row with a live SSE step so a refetch can never downgrade COMPLETED → RUNNING.
@@ -78,10 +97,10 @@ export const useIncidentLiveStore = create<IncidentLiveState>((set) => ({
                 : state.status,
           }
         case 'step_complete': {
-          const name = canonicalName(event.node)
+          const name = event.node
           const data = event.data
           const steps = [...state.steps]
-          const existing = steps.findIndex((s) => canonicalName(s.name) === name)
+          const existing = steps.findIndex((s) => s.name === name)
           const entry: LiveStep = {
             id: existing >= 0 ? steps[existing].id : `${name}-${steps.length}`,
             name,
@@ -91,32 +110,29 @@ export const useIncidentLiveStore = create<IncidentLiveState>((set) => ({
           if (existing >= 0) steps[existing] = entry
           else steps.push(entry)
 
-          const contextSummary =
-            (data.context_summary as ContextSummary | undefined) ?? state.contextSummary
+          const diagnosis = data.diagnosis
+          const incidentType =
+            name === 'triage' ? asIncidentType(data.incident_type) : null
 
           return {
             steps,
-            contextSummary,
-            recommendedNextSteps:
-              contextSummary?.recommended_next_steps ?? state.recommendedNextSteps,
+            incidentType: incidentType ?? state.incidentType,
+            analysis:
+              name === 'diagnose' && isDiagnosis(diagnosis) ? diagnosis : state.analysis,
           }
         }
-        case 'incident_complete': {
-          const published = event.recommended_steps
-          const nextSteps = Array.isArray(published)
-            ? (published as string[])
-            : state.recommendedNextSteps
-
+        case 'incident_complete':
           return {
             status:
               INCIDENT_STATUS_RANK[event.status] > INCIDENT_STATUS_RANK[state.status]
                 ? event.status
                 : state.status,
             incidentTitle: event.title ?? state.incidentTitle,
-            recommendedNextSteps: nextSteps,
+            incidentType: event.incident_type ?? state.incidentType,
+            analysis:
+              event.analysis && isDiagnosis(event.analysis) ? event.analysis : state.analysis,
             isComplete: true,
           }
-        }
         case 'incident_failed':
           return {
             status: 'FAILED',
@@ -129,33 +145,27 @@ export const useIncidentLiveStore = create<IncidentLiveState>((set) => ({
     }),
   hydrate: (payload) =>
     set((state) => {
-      const rowsByName = new Map<string, LiveStep>()
-      for (const step of payload.steps) {
-        rowsByName.set(canonicalName(step.name), step)
-      }
-
       // Hydrated DB rows are the base (they carry ids / timestamps); live SSE
-      // steps are merged in per canonical name, keeping whichever has the more
-      // progressed status so stale REST data can't undo a completed step.
-      const rowsByCanonical = new Map<string, LiveStep>()
-      for (const [name, row] of rowsByName) {
-        const prev = rowsByCanonical.get(name)
+      // steps are merged in by name, keeping whichever has the more progressed
+      // status so stale REST data can't undo a completed step.
+      const rowsByName = new Map<string, LiveStep>()
+      for (const row of payload.steps) {
+        const prev = rowsByName.get(row.name)
         if (!prev || STATUS_RANK[row.status] > STATUS_RANK[prev.status]) {
-          rowsByCanonical.set(name, row)
+          rowsByName.set(row.name, row)
         }
       }
 
       const liveByName = new Map<string, LiveStep>()
       for (const step of state.steps) {
-        const name = canonicalName(step.name)
-        const prev = liveByName.get(name)
+        const prev = liveByName.get(step.name)
         if (!prev || STATUS_RANK[step.status] > STATUS_RANK[prev.status]) {
-          liveByName.set(name, step)
+          liveByName.set(step.name, step)
         }
       }
 
       const steps: LiveStep[] = []
-      for (const [name, row] of rowsByCanonical) {
+      for (const [name, row] of rowsByName) {
         const live = liveByName.get(name)
         liveByName.delete(name)
         if (!live) {
@@ -172,18 +182,18 @@ export const useIncidentLiveStore = create<IncidentLiveState>((set) => ({
           error_message: source.error_message ?? other.error_message,
         })
       }
-      // SSE-only steps (e.g. route_pX) that have no DB row yet keep their position
+      // SSE-only steps (e.g. the currently running node) keep their position.
       for (const [, step] of liveByName) steps.push(step)
 
       return {
         incidentTitle: state.incidentTitle ?? payload.title,
+        incidentType: state.incidentType ?? payload.incidentType,
         status:
-        INCIDENT_STATUS_RANK[payload.status] > INCIDENT_STATUS_RANK[state.status]
-          ? payload.status
-          : state.status,
+          INCIDENT_STATUS_RANK[payload.status] > INCIDENT_STATUS_RANK[state.status]
+            ? payload.status
+            : state.status,
         steps,
-        contextSummary: state.contextSummary ?? payload.contextSummary,
-        recommendedNextSteps: state.recommendedNextSteps ?? payload.recommendedNextSteps,
+        analysis: state.analysis ?? payload.analysis,
       }
     }),
   reset: () => set({ ...INITIAL }),
