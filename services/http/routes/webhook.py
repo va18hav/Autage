@@ -96,12 +96,6 @@ async def receive_webhook(
     await db.commit()
     await db.refresh(incident)
 
-    await request.app.state.arq_pool.enqueue_job(
-        "run_agent_task",
-        str(incident.id),
-        _job_id=f"incident:{incident.id}"
-    )
-
     return {
         "incident_id": str(incident.id),
         "status": incident.status,

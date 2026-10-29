@@ -1,3 +1,5 @@
+from urllib.parse import quote_plus
+
 from cryptography.fernet import Fernet
 from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -63,6 +65,12 @@ class Settings(BaseSettings):
     JWT_EXPIRE_MINUTES: int = 60 * 24  # 24 hours
     COOKIE_SECURE: bool = False
 
+    # Postgres-backed incident worker.
+    WORKER_POLL_SECONDS: float = 1.0
+    WORKER_MAX_ATTEMPTS: int = 3
+    WORKER_RETRY_DELAY_SECONDS: int = 30
+    WORKER_JOB_TIMEOUT_SECONDS: int = 15 * 60
+
     @field_validator("AUTAGE_SETUP_TOKEN")
     @classmethod
     def validate_autage_setup_token(cls, value: str | None) -> str | None:
@@ -117,8 +125,18 @@ class Settings(BaseSettings):
     @property
     def database_url(self) -> str:
         return (
-            f"postgresql+asyncpg://{self.DB_USER}:{self.DB_PASSWORD}"
-            f"@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
+            f"postgresql+asyncpg://{quote_plus(self.DB_USER)}:"
+            f"{quote_plus(self.DB_PASSWORD)}@{self.DB_HOST}:{self.DB_PORT}/"
+            f"{quote_plus(self.DB_NAME)}"
+        )
+
+    @property
+    def psycopg_database_url(self) -> str:
+        """Connection URL for psycopg-based LangGraph checkpoints."""
+        return (
+            f"postgresql://{quote_plus(self.DB_USER)}:"
+            f"{quote_plus(self.DB_PASSWORD)}@{self.DB_HOST}:{self.DB_PORT}/"
+            f"{quote_plus(self.DB_NAME)}"
         )
 
 settings = Settings()

@@ -32,7 +32,7 @@ def password_reset_rate_limit_key(ip: str) -> str:
 
 
 def _redis(request: Request) -> Any:
-    redis = getattr(request.app.state, "arq_pool", None)
+    redis = getattr(request.app.state, "redis", None)
     if redis is None:
         raise RateLimitBackendError("Redis is not configured")
     return redis
