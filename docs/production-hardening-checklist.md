@@ -23,11 +23,12 @@ Tick an item only when it is actually working in the deployment.
 ### Reliability
 
 - [ ] Make `/health` verify Postgres and Redis, not just return `{"status":"ok"}`.
-- [ ] Handle queue-enqueue failure: mark the incident `FAILED` or retry it instead of
-  leaving a silent `PENDING` row.
-- [ ] Add a worker timeout and limited retries; mark the incident `FAILED` after the
+- [x] Use PostgreSQL as the incident queue with `FOR UPDATE SKIP LOCKED`; remove the
+  separate Redis job enqueue.
+- [x] Add a worker timeout and limited retries; mark the incident `FAILED` after the
   final attempt.
-- [ ] Recover stale `PENDING` incidents after an API/worker restart.
+- [x] Resume interrupted `TRIAGING` incidents from LangGraph checkpoints after a
+  worker restart.
 - [ ] Add one simple PostgreSQL backup command and document the restore procedure.
 
 ### Product safety
@@ -62,6 +63,8 @@ These are worthwhile later, but not blockers for a small first group of users:
 - CSRF double-submit protection for authenticated writes.
 - 24-hour JWT sessions.
 - HMAC-signed webhooks with a DB-configured secret.
+- PostgreSQL-backed incident queue with bounded retries and stale-lease recovery.
+- LangGraph Postgres checkpoints for resuming interrupted agent runs.
 - Read-only Kubernetes tool catalog, TLS verification, and fail-closed credentials.
 - Single-user database constraint.
 - Automated backend tests and dashboard lint/build.

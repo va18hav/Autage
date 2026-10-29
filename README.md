@@ -22,8 +22,9 @@ Autage is a self-hosted SRE agent that receives monitoring alerts over webhooks,
 ```mermaid
 flowchart LR
     A[Monitoring Webhook] -->|HMAC-SHA256| B[FastAPI API]
-    B -->|Active Dedup & Enqueue| C[(Redis / ARQ)]
-    C --> D[LangGraph Worker]
+    B -->|Persist PENDING incident| C[(PostgreSQL)]
+    C -->|FOR UPDATE SKIP LOCKED| D[LangGraph Worker]
+    D -->|Status + checkpoints| C
     D -->|1. Triage| E{Severity}
     E -->|P1 / P2| F[2. Cluster Diagnostics]
     E -->|P3| H[4. Remediation Plan]
@@ -139,7 +140,7 @@ not unknown, and each item below has a known design path):
 
 **Requirements:** Docker (for testing, optionally `kind` + `kubectl` — the setup script installs them via Homebrew).
 
-Start PostgreSQL, Redis, FastAPI, the ARQ worker, and the React dashboard in a single command:
+Start PostgreSQL, Redis, FastAPI, the Postgres-backed worker, and the React dashboard in a single command:
 
 ```bash
 cp .env.example .env
@@ -194,14 +195,14 @@ services/
 ├── db/             # Async SQLAlchemy 2.0 models (Incident, Runbook, Credential, User)
 ├── http/           # FastAPI application, JWT cookie auth, REST & SSE endpoints
 ├── secrets/        # Fernet encryption wrapper and SecretStore DAO
-├── worker/         # ARQ worker executing the LangGraph pipeline and publishing Redis events
+├── worker/         # Postgres queue worker with LangGraph checkpoint resume and Redis events
 └── dashboard/      # React 19 + TypeScript + Tailwind v4 SPA
 tests/
 ├── agent/          # Unit & integration tests for graph, llm/, nodes/, prompts/, and tools/
 ├── db/             # Database session and SQLAlchemy model tests (models/)
 ├── http/           # FastAPI app, JWT auth, HMAC webhook, routes/, and schemas/ tests
 ├── secrets/        # Fernet crypto and SecretStore DAO tests
-└── worker/         # ARQ worker lifecycle and Redis Pub/Sub event tests
+└── worker/         # Queue claiming, checkpoint resume, retry, and Pub/Sub tests
 ```
 
 ## License
