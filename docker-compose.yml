@@ -45,9 +45,10 @@ services:
       DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set in .env}
       DB_NAME: autage
       REDIS_URL: redis://redis:6379/0
-      CORS_ORIGINS: http://localhost:5173,http://127.0.0.1:5173
+      CORS_ORIGINS: https://${AUTAGE_HOST:-localhost},http://localhost:5173,http://127.0.0.1:5173
+      COOKIE_SECURE: "true"
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     depends_on:
       db:
         condition: service_healthy
@@ -82,13 +83,31 @@ services:
       context: ./services/dashboard
       dockerfile: Dockerfile
       args:
-        VITE_API_URL: http://localhost:8000
+        VITE_API_URL: /api
     container_name: autage-dashboard
     restart: unless-stopped
-    ports:
-      - "5173:80"
     depends_on:
       - api
 
+  caddy:
+    image: caddy:2-alpine
+    container_name: autage-caddy
+    restart: unless-stopped
+    environment:
+      AUTAGE_HOST: ${AUTAGE_HOST:-localhost}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ${CADDYFILE:-./deploy/Caddyfile}:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - api
+      - dashboard
+
 volumes:
   postgres_data:
+  caddy_data:
+  caddy_config:

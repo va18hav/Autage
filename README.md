@@ -140,7 +140,8 @@ not unknown, and each item below has a known design path):
 
 **Requirements:** Docker (for testing, optionally `kind` + `kubectl` — the setup script installs them via Homebrew).
 
-Start PostgreSQL, Redis, FastAPI, the Postgres-backed worker, and the React dashboard in a single command:
+Start PostgreSQL, Redis, FastAPI, the Postgres-backed worker, the React dashboard,
+and Caddy for HTTPS in a single command:
 
 ```bash
 cp .env.example .env
@@ -162,7 +163,8 @@ docker compose up --build
 bash scripts/setup_kind_cluster.sh
 ```
 
-Then open `http://localhost:5173`:
+Then open `https://localhost` (Caddy uses a local CA; see
+[`docs/https-deployment.md`](docs/https-deployment.md) if the browser warns):
 
 1. Complete the one-time account registration screen using the `AUTAGE_SETUP_TOKEN` value from `.env`. Keep the token: it is also used from **Forgot password?** on the login screen to reset the administrator password.
 2. Walk through the 5-step **Onboarding** flow:

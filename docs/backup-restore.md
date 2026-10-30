@@ -44,7 +44,8 @@ docker compose exec -T db pg_restore --no-owner -U autage -d autage \
   < backups/autage-2026-10-30T120000Z.dump
 
 docker compose start api worker
-curl -fsS http://localhost:8000/health
+# Use -k only for Caddy's local CA; omit it when the certificate is trusted.
+curl -kfsS https://localhost/api/health
 ```
 
 The final health check should return Postgres and Redis as `ok`.

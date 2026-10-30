@@ -11,7 +11,7 @@ Tick an item only when it is actually working in the deployment.
 
 ### Deployment and access
 
-- [ ] Serve the dashboard and API over HTTPS; set `COOKIE_SECURE=true`.
+- [x] Serve the dashboard and API over HTTPS; set `COOKIE_SECURE=true`.
 - [ ] Stop publishing Postgres `5432` and Redis `6379`; keep them on a private
   Docker network.
 - [ ] Set `CORS_ORIGINS` to the real dashboard origin instead of localhost defaults.
