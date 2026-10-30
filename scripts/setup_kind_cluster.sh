@@ -69,6 +69,10 @@ if ! kubectl get deployment "${DEPLOYMENT}" -n "${NAMESPACE}" >/dev/null 2>&1; t
 fi
 kubectl -n "${NAMESPACE}" set resources deploy/"${DEPLOYMENT}" --limits=memory=100Mi >/dev/null
 
+# ── verify the bot account is genuinely read-only ────────────────────────────
+info "Verifying the ServiceAccount cannot read Secrets, exec, or write..."
+bash "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/verify_k8s_readonly.sh"
+
 # ── credentials ──────────────────────────────────────────────────────────────
 info "Issuing ${TOKEN_DURATION} read-only token…"
 TOKEN="$(kubectl create token "${SA_NAME}" -n default --duration="${TOKEN_DURATION}")"

@@ -22,19 +22,19 @@ Tick an item only when it is actually working in the deployment.
 
 ### Reliability
 
-- [ ] Make `/health` verify Postgres and Redis, not just return `{"status":"ok"}`.
+- [x] Make `/health` verify Postgres and Redis, not just return `{"status":"ok"}`.
 - [x] Use PostgreSQL as the incident queue with `FOR UPDATE SKIP LOCKED`; remove the
   separate Redis job enqueue.
 - [x] Add a worker timeout and limited retries; mark the incident `FAILED` after the
   final attempt.
 - [x] Resume interrupted `TRIAGING` incidents from LangGraph checkpoints after a
   worker restart.
-- [ ] Add one simple PostgreSQL backup command and document the restore procedure.
+- [x] Add one simple PostgreSQL backup command and document the restore procedure.
 
 ### Product safety
 
 - [x] Require at least 12 characters for passwords and document the bcrypt cost.
-- [ ] Verify the Kubernetes ServiceAccount has only `get`/`list`/`watch`; it must not
+- [x] Verify the Kubernetes ServiceAccount has only `get`/`list`/`watch`; it must not
   read Secrets, exec into pods, or write resources.
 - [ ] Run backend tests plus dashboard lint/build before each release, preferably in CI.
 
