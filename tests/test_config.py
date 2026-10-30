@@ -102,3 +102,18 @@ def test_settings_database_url_construction():
 def test_settings_cors_origins_list_parsing():
     cfg = Settings(CORS_ORIGINS=" https://autage.dev , http://localhost:5173 , ")
     assert cfg.cors_origins_list == ["https://autage.dev", "http://localhost:5173"]
+
+
+def test_settings_rejects_wildcard_cors_origin():
+    with pytest.raises(ValidationError, match="cannot contain"):
+        Settings(CORS_ORIGINS="*")
+
+
+def test_settings_rejects_invalid_cors_origin():
+    with pytest.raises(ValidationError, match="invalid origin"):
+        Settings(CORS_ORIGINS="autage.dev")
+
+
+def test_settings_rejects_empty_cors_origins():
+    with pytest.raises(ValidationError, match="at least one"):
+        Settings(CORS_ORIGINS=" , ")

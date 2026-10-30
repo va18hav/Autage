@@ -9,3 +9,7 @@ services:
   redis:
     ports:
       - "127.0.0.1:6379:6379"
+
+  api:
+    environment:
+      CORS_ORIGINS: https://${AUTAGE_HOST:-localhost},http://localhost:5173,http://127.0.0.1:5173

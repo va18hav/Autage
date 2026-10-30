@@ -41,7 +41,7 @@ services:
       DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set in .env}
       DB_NAME: autage
       REDIS_URL: redis://redis:6379/0
-      CORS_ORIGINS: https://${AUTAGE_HOST:-localhost},http://localhost:5173,http://127.0.0.1:5173
+      CORS_ORIGINS: https://${AUTAGE_HOST:-localhost}
       COOKIE_SECURE: "true"
     ports:
       - "127.0.0.1:8000:8000"

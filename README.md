@@ -155,6 +155,8 @@ python3 -c "import secrets; print(secrets.token_urlsafe(32))"
 # Keep it secret; the same token resets the admin password if forgotten.
 python3 -c "import secrets; print(secrets.token_urlsafe(48))"
 # The app and Compose refuse to start unless required values are set.
+chmod 600 .env
+bash scripts/check_env.sh
 
 docker compose up --build
 
