@@ -11,13 +11,13 @@ Tick an item only when it is actually working in the deployment.
 
 ### Deployment and access
 
-- [ ] Serve the dashboard and API over HTTPS; set `COOKIE_SECURE=true`.
-- [ ] Stop publishing Postgres `5432` and Redis `6379`; keep them on a private
+- [x] Serve the dashboard and API over HTTPS; set `COOKIE_SECURE=true`.
+- [x] Stop publishing Postgres `5432` and Redis `6379`; keep them on a private
   Docker network.
-- [ ] Set `CORS_ORIGINS` to the real dashboard origin instead of localhost defaults.
-- [ ] Keep `.env` out of git, readable only by the owner (`chmod 600`), with unique
+- [x] Set `CORS_ORIGINS` to the real dashboard origin instead of localhost defaults.
+- [x] Keep `.env` out of git, readable only by the owner (`chmod 600`), with unique
   production secrets.
-- [ ] Add basic proxy security headers: HSTS, `X-Content-Type-Options`,
+- [x] Add basic proxy security headers: HSTS, `X-Content-Type-Options`,
   `X-Frame-Options`/`frame-ancestors`, and `Referrer-Policy`.
 
 ### Reliability

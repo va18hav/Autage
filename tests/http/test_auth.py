@@ -73,6 +73,15 @@ def test_set_and_clear_auth_cookie():
     assert f'{COOKIE_NAME}=""' in clear_header or "Max-Age=0" in clear_header
 
 
+def test_auth_cookie_has_secure_flag_when_enabled(monkeypatch):
+    monkeypatch.setattr(settings, "COOKIE_SECURE", True)
+    resp = Response()
+
+    set_auth_cookie(resp, "sample-jwt-token")
+
+    assert "Secure" in resp.headers.get("set-cookie", "")
+
+
 @pytest.mark.anyio
 async def test_resolve_optional_user_and_get_current_user():
     db = InMemoryAsyncSession()

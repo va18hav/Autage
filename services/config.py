@@ -1,4 +1,4 @@
-from urllib.parse import quote_plus
+from urllib.parse import quote_plus, urlparse
 
 from cryptography.fernet import Fernet
 from pydantic import field_validator, model_validator
@@ -115,12 +115,49 @@ class Settings(BaseSettings):
             )
         return self
 
-    # Comma-separated list of allowed CORS origins for the web dashboard
+    # Comma-separated list of allowed CORS origins for the web dashboard.
+    # Credentials are enabled, so wildcards are not allowed.
     CORS_ORIGINS: str = "http://localhost:5173,http://127.0.0.1:5173"
+
+    @field_validator("CORS_ORIGINS")
+    @classmethod
+    def validate_cors_origins(cls, value: str) -> str:
+        origins: list[str] = []
+        for raw_origin in value.split(","):
+            origin = raw_origin.strip().rstrip("/")
+            if not origin:
+                continue
+            if origin == "*":
+                raise ValueError(
+                    "CORS_ORIGINS cannot contain '*' while credentialed requests "
+                    "are enabled. Set the real dashboard origin."
+                )
+
+            parsed = urlparse(origin)
+            if (
+                parsed.scheme not in {"http", "https"}
+                or not parsed.netloc
+                or parsed.path not in {"", "/"}
+                or parsed.params
+                or parsed.query
+                or parsed.fragment
+            ):
+                raise ValueError(
+                    f"CORS_ORIGINS contains an invalid origin: {origin!r}. "
+                    "Use scheme://host[:port]."
+                )
+
+            if origin not in origins:
+                origins.append(origin)
+
+        if not origins:
+            raise ValueError("CORS_ORIGINS must contain at least one origin.")
+
+        return ",".join(origins)
 
     @property
     def cors_origins_list(self) -> list[str]:
-        return [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]
+        return self.CORS_ORIGINS.split(",")
 
     @property
     def database_url(self) -> str:

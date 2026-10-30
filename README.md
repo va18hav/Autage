@@ -140,7 +140,8 @@ not unknown, and each item below has a known design path):
 
 **Requirements:** Docker (for testing, optionally `kind` + `kubectl` — the setup script installs them via Homebrew).
 
-Start PostgreSQL, Redis, FastAPI, the Postgres-backed worker, and the React dashboard in a single command:
+Start PostgreSQL, Redis, FastAPI, the Postgres-backed worker, the React dashboard,
+and Caddy for HTTPS in a single command:
 
 ```bash
 cp .env.example .env
@@ -154,6 +155,8 @@ python3 -c "import secrets; print(secrets.token_urlsafe(32))"
 # Keep it secret; the same token resets the admin password if forgotten.
 python3 -c "import secrets; print(secrets.token_urlsafe(48))"
 # The app and Compose refuse to start unless required values are set.
+chmod 600 .env
+bash scripts/check_env.sh
 
 docker compose up --build
 
@@ -162,16 +165,26 @@ docker compose up --build
 bash scripts/setup_kind_cluster.sh
 ```
 
-Then open `http://localhost:5173`:
+Then open `https://localhost` (Caddy uses a local CA; see
+[`docs/https-deployment.md`](docs/https-deployment.md) if the browser warns):
 
 1. Complete the one-time account registration screen using the `AUTAGE_SETUP_TOKEN` value from `.env`. Keep the token: it is also used from **Forgot password?** on the login screen to reset the administrator password.
 2. Walk through the 5-step **Onboarding** flow:
-   - **Step 1 — Alert Webhook & Secret**: Copy the dynamic webhook URL (`${VITE_API_URL}/webhooks/alert`) and generate your HMAC signing secret.
+   - **Step 1 — Alert Webhook & Secret**: Copy the dynamic webhook URL (`https://<AUTAGE_HOST>/api/webhooks/alert`) and generate your HMAC signing secret.
    - **Step 2 — AI Model Providers**: Add at least one provider API key (`Google Gemini`, `OpenAI`, `Anthropic`, `OpenRouter`, or `Ollama`). Model lists are fetched live from each provider once a key is saved.
    - **Step 3 — Pipeline Model Routing**: Assign models to each of the 4 pipeline stages.
    - **Step 4 — Upload Runbooks**: Upload `.md` operational runbooks to be chunked and indexed.
    - **Step 5 — Kubernetes Cluster**: Connect a cluster via API Server URL + read-only ServiceAccount token (the kind script above already created one — it printed both values ready to paste).
-3. Trigger a test incident directly from the **Dashboard** (or run `uv run python scripts/send_mock_alert.py`).
+3. Trigger a test incident directly from the **Dashboard**.
+
+Host-run scripts that read the database need the optional dev override:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d db redis
+uv run python scripts/send_mock_alert.py
+```
+
+The default stack keeps Postgres and Redis off the host network.
 
 ### Backups
 

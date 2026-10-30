@@ -8,4 +8,8 @@ export const API_URL = (
       : ''
 ).replace(/\/$/, '')
 
-export const WEBHOOK_ALERT_URL = `${API_URL}/webhooks/alert`
+const webhookPath = `${API_URL}/webhooks/alert`
+export const WEBHOOK_ALERT_URL =
+  typeof window !== 'undefined'
+    ? new URL(webhookPath, window.location.origin).toString()
+    : webhookPath

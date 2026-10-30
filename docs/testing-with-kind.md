@@ -77,7 +77,12 @@ OUTPUT_FILE=~/autage-k8s-rbac.txt bash scripts/verify_k8s_readonly.sh
 
 ## Fire a real incident
 
+The script runs on your host and reads the webhook secret from Postgres. If you
+are using the default private Compose stack, expose the database on loopback for
+this command:
+
 ```bash
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d db redis
 uv run python scripts/send_mock_alert.py --live
 ```
 
