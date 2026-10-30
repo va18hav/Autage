@@ -315,6 +315,9 @@ class FakeRedis:
         self.rate_expires: dict[str, float] = {}
         self.closed: bool = False
 
+    async def ping(self) -> bool:
+        return True
+
     async def publish(self, channel: str, payload: str) -> int:
         self.published.append((channel, payload))
         return 1

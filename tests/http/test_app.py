@@ -6,10 +6,52 @@ from tests.conftest import FakeRedis
 
 
 @pytest.mark.anyio
-async def test_health_endpoint(api_client):
+async def test_health_endpoint_checks_postgres_and_redis(api_client):
     res = await api_client.get("/health")
     assert res.status_code == 200
-    assert res.json() == {"status": "ok"}
+    assert res.json() == {
+        "status": "ok",
+        "postgres": "ok",
+        "redis": "ok",
+    }
+
+
+@pytest.mark.anyio
+async def test_health_endpoint_reports_postgres_failure(api_env, api_client, monkeypatch):
+    session, _ = api_env
+
+    async def _fail(_statement):
+        raise ConnectionError("postgres unavailable")
+
+    monkeypatch.setattr(session, "execute", _fail)
+
+    res = await api_client.get("/health")
+
+    assert res.status_code == 503
+    assert res.json() == {
+        "status": "degraded",
+        "postgres": "error",
+        "redis": "ok",
+    }
+
+
+@pytest.mark.anyio
+async def test_health_endpoint_reports_redis_failure(api_env, api_client, monkeypatch):
+    _, redis_client = api_env
+
+    async def _fail():
+        raise ConnectionError("redis unavailable")
+
+    monkeypatch.setattr(redis_client, "ping", _fail)
+
+    res = await api_client.get("/health")
+
+    assert res.status_code == 503
+    assert res.json() == {
+        "status": "degraded",
+        "postgres": "ok",
+        "redis": "error",
+    }
 
 
 @pytest.mark.anyio
