@@ -36,6 +36,24 @@ This:
    - a **Token** valid for one year
    - the **CA certificate** (PEM block)
 
+## Verify the bot account is read-only
+
+The setup script runs this automatically. You can also run it manually:
+
+```bash
+bash scripts/verify_k8s_readonly.sh
+```
+
+It checks that the ServiceAccount can get/list/watch pods, logs, and deployments,
+and that it **cannot** read Secrets, exec into pods, create pods, or modify/delete
+deployments or ConfigMaps.
+
+For a deployment record, save the full authorization listing:
+
+```bash
+OUTPUT_FILE=~/autage-k8s-rbac.txt bash scripts/verify_k8s_readonly.sh
+```
+
 ## Connecting Autage (2 manual steps, one time)
 
 1. If you started Autage before creating the cluster, restart it so the
@@ -102,8 +120,8 @@ kubectl logs -n production deploy/auth-service --previous
 
 ## Notes
 
-- The token is strictly read-only (`view` ClusterRole) — Autage cannot delete or
-  modify anything in the cluster.
+- The token is strictly read-only (`view` ClusterRole), and `scripts/verify_k8s_readonly.sh`
+  checks that it cannot read Secrets, exec into pods, or write/delete resources.
 - Nothing leaves your machine: the cluster lives in Docker; the token is valid
   only for that local cluster.
 - CI keeps the offline unit-test suite (no cluster needed); this setup is what

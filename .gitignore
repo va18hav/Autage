@@ -1,6 +1,7 @@
 .env
 .DS_Store
 finalstate.json
+backups/
 
 # Python-generated files
 __pycache__/

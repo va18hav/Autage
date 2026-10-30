@@ -48,7 +48,7 @@ Each of the four stages can be routed to a different LLM provider and model (`Go
 ## Key Features
 
 - **Encrypted Credential Store**: LLM API keys, webhook signing secrets, and Kubernetes ServiceAccount tokens are encrypted at rest in PostgreSQL using Fernet (`AUTAGE_SECRET_KEY`).
-- **Kubernetes Integration**: Connect a real cluster via its API Server URL and a read-only `view` ServiceAccount bearer token (see `docs/testing-with-kind.md` for a free local kind setup).
+- **Kubernetes Integration**: Connect a real cluster via its API Server URL and a read-only `view` ServiceAccount bearer token (see `docs/testing-with-kind.md` for a free local kind setup and `scripts/verify_k8s_readonly.sh` for the permission audit).
 - **Real-Time SSE Streaming**: Every node transition and `kubectl` command output is published over Redis Pub/Sub and streamed to the browser via Server-Sent Events with race-condition-safe status reconciliation.
 - **Active-Incident Deduplication**: Computes SHA-256 payload fingerprints and deduplicates against currently active (`PENDING`/`TRIAGING`) incidents while allowing recurring alerts after resolution.
 - **Client-Side Runbook Chunker**: Parses Markdown runbooks (and YAML frontmatter) into discrete, ordered sections with token estimates before indexing.
@@ -172,6 +172,16 @@ Then open `http://localhost:5173`:
    - **Step 4 — Upload Runbooks**: Upload `.md` operational runbooks to be chunked and indexed.
    - **Step 5 — Kubernetes Cluster**: Connect a cluster via API Server URL + read-only ServiceAccount token (the kind script above already created one — it printed both values ready to paste).
 3. Trigger a test incident directly from the **Dashboard** (or run `uv run python scripts/send_mock_alert.py`).
+
+### Backups
+
+Create a compressed PostgreSQL backup with:
+
+```bash
+bash scripts/backup_postgres.sh
+```
+
+Restore and verification steps are in [`docs/backup-restore.md`](docs/backup-restore.md).
 
 ---
 
