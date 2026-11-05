@@ -133,11 +133,12 @@ export const StepOutput = memo(function StepOutput({ step }: { step: LiveStep })
     )
   }
 
-  if (step.name === 'collect_evidence') {
+  if (step.name === 'investigate' || step.name === 'collect_evidence') {
     const evidence = Array.isArray(data.evidence)
       ? data.evidence.filter(isEvidenceRecord)
       : []
     const succeeded = evidence.filter((record) => record.ok).length
+    const runbookSummary = text(data.runbooks_summary)
 
     return (
       <div className="space-y-4">
@@ -153,18 +154,31 @@ export const StepOutput = memo(function StepOutput({ step }: { step: LiveStep })
             ))}
           </div>
         )}
+        {runbookSummary && (
+          <details className="group rounded-xl border border-neutral-200/80 bg-neutral-50/40 px-4 py-3">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-[13.5px] font-medium text-neutral-700">
+              <span>Runbook guidance used</span>
+              <span className="text-[12.5px] font-normal text-neutral-400">
+                Initial guidance plus any follow-up sections
+              </span>
+            </summary>
+            <div className="mt-3 max-h-72 overflow-y-auto border-t border-neutral-200/70 pt-3 text-[13.5px] leading-relaxed whitespace-pre-wrap text-neutral-700">
+              {runbookSummary}
+            </div>
+          </details>
+        )}
         <MissingEvidence data={data} />
       </div>
     )
   }
 
-  if (step.name === 'find_runbook') {
+  if (step.name === 'search_runbook' || step.name === 'find_runbook') {
     const summary = text(data.runbooks_summary)
 
     return (
       <div className="space-y-4">
         {summary ? (
-          <p className="whitespace-pre-wrap text-[14px] leading-relaxed text-neutral-700">
+          <p className="max-h-72 overflow-y-auto whitespace-pre-wrap text-[14px] leading-relaxed text-neutral-700">
             {summary}
           </p>
         ) : (

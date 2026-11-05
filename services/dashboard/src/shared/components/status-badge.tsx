@@ -11,7 +11,7 @@ const STATUS_STYLES: Record<
     dot: 'bg-neutral-400',
   },
   TRIAGING: {
-    label: 'Triaging',
+    label: 'In progress',
     className: 'bg-amber-50 text-amber-800 ring-1 ring-amber-200/80',
     dot: 'bg-amber-500',
     pulse: true,

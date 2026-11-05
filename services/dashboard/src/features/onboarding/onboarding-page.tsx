@@ -19,7 +19,7 @@ const ONBOARDING_STEPS = [
   {
     key: 'providers',
     title: 'AI Model Providers',
-    subtitle: 'Configure at least one LLM provider API key so the agent can triage incidents.',
+    subtitle: 'Configure at least one LLM provider API key so the agent can classify, investigate, and diagnose incidents.',
   },
   {
     key: 'routing',

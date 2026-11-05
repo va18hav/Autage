@@ -12,9 +12,12 @@ const VERB: Record<StepStatus, string> = {
 
 const LABELS: Record<string, string> = {
   triage: 'Triage & Classification',
-  collect_evidence: 'Evidence Collection',
-  find_runbook: 'Runbook Lookup',
+  search_runbook: 'Runbook Search',
+  investigate: 'Investigation',
   diagnose: 'Diagnosis',
+  // Legacy names in historical incident traces
+  collect_evidence: 'Investigation',
+  find_runbook: 'Runbook Search',
 }
 
 function label(name: string) {
@@ -152,7 +155,7 @@ export function LiveTerminal({ steps, live = false }: { steps: LiveStep[]; live?
                   {step.status === 'RUNNING' && !step.output_data && (
                     <div className="flex items-center gap-3 rounded-xl border border-amber-200/80 bg-amber-50/50 px-4 py-3 text-[14px] text-amber-900">
                       <span className="size-2 animate-ping rounded-full bg-amber-500" />
-                      <span>Agent is running this step and gathering cluster signals…</span>
+                      <span>Agent is running this pipeline step…</span>
                     </div>
                   )}
 

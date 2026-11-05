@@ -24,7 +24,7 @@ export function ActiveTriageBanner({ incidents }: ActiveTriageBannerProps) {
                 <span className="absolute inline-flex size-full animate-ping rounded-full bg-amber-500 opacity-75" />
                 <span className="relative inline-flex size-2 rounded-full bg-amber-500" />
               </span>
-              Triaging
+              In progress
             </span>
 
             <p className="truncate text-[15px] font-medium text-neutral-900">

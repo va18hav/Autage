@@ -7,9 +7,12 @@ import type { LiveStep } from '../../incident/store/incident-live-store'
 
 const STEP_LABELS: Record<string, string> = {
   triage: 'Triage & Classification',
-  collect_evidence: 'Evidence Collection',
-  find_runbook: 'Runbook Lookup',
+  search_runbook: 'Runbook Search',
+  investigate: 'Investigation',
   diagnose: 'Diagnosis',
+  // Legacy names in historical incident traces
+  collect_evidence: 'Investigation',
+  find_runbook: 'Runbook Search',
 }
 
 export function StepTimeline({ steps }: { steps: IncidentStep[] }) {

@@ -66,7 +66,7 @@ export function DashboardPage() {
         />
       </div>
 
-      {/* Model-backed pipeline stages (triage + diagnosis) */}
+      {/* Model-backed pipeline stages (triage, runbook search, investigation, diagnosis) */}
       <PipelineTopologyCard
         steps={llmSettings?.steps ?? []}
         stepKeys={catalog?.steps ?? []}

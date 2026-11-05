@@ -86,10 +86,10 @@ export function IncidentDetailSheet({ incidentId, onClose }: IncidentDetailSheet
                     </span>
                     <div>
                       <p className="text-[14.5px] font-medium text-amber-950">
-                        Agent is actively triaging this incident
+                        Agent is actively working this incident
                       </p>
                       <p className="text-[13px] text-amber-800/80">
-                        Watch diagnostic steps and cluster telemetry stream in real time.
+                        Watch each pipeline step and its evidence stream in real time.
                       </p>
                     </div>
                   </div>

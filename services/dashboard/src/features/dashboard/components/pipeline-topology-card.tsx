@@ -2,7 +2,9 @@ import type { ComponentType, SVGProps } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowRight } from 'lucide-react'
 import {
+  StageDiagnosticsIcon,
   StageRecommendationsIcon,
+  StageRunbooksIcon,
   StageTriageIcon,
 } from '../../../shared/components/icons'
 import type { Provider, StepConfig, StepKeyInfo } from '../../../shared/types/settings'
@@ -10,11 +12,15 @@ import { ProviderLogo } from '../../settings/components/provider-logo'
 
 const STAGE_ICONS: Record<string, ComponentType<SVGProps<SVGSVGElement>>> = {
   triage: StageTriageIcon,
+  runbooks: StageRunbooksIcon,
+  investigate: StageDiagnosticsIcon,
   diagnose: StageRecommendationsIcon,
 }
 
 const STAGE_TITLES: Record<string, string> = {
   triage: 'Alert Triage',
+  runbooks: 'Runbook Search',
+  investigate: 'Investigation',
   diagnose: 'Diagnosis',
 }
 
@@ -42,7 +48,7 @@ export function PipelineTopologyCard({
             Agent Pipeline Topology
           </h2>
           <p className="text-[14px] text-neutral-500">
-            Active model routing across the two model-backed stages.
+            Active model routing across the four model-backed stages.
           </p>
         </div>
 
