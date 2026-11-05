@@ -109,6 +109,6 @@ Produce one structured diagnosis with these fields:
   relevant follow-up. Never suggest an action outside the named resources
   unless the evidence clearly requires escalation.
 
-If the incident type is "other", state that Autage does not yet have a
-specialised playbook and keep the diagnosis conservative.
+If the incident type is "other", the evidence may be incomplete. Be explicit
+about that uncertainty and keep the diagnosis conservative.
 """

@@ -6,7 +6,7 @@ import pytest
 
 import services.worker.main as worker_mod
 from services.agent.llm import LlmConfigError, LlmResolver
-from services.agent.playbooks import IncidentType
+from services.agent.incidents import IncidentType
 from services.db.models.incident import Incident, IncidentStatus
 from services.worker.main import run_agent_task
 from tests.conftest import FakeRedis, InMemoryAsyncSession

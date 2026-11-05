@@ -1,7 +1,11 @@
 import pytest
 
 import services.agent.tools.runbooks as rb_tools_mod
-from services.agent.tools.runbooks import find_runbooks_for_incident
+from services.agent.tools.runbooks import (
+    fetch_runbook_sections,
+    format_runbook_catalog,
+    load_runbook_catalog,
+)
 from services.db.models.runbooks import Runbook, RunbookSection
 from tests.conftest import InMemoryAsyncSession
 
@@ -13,12 +17,13 @@ def _add_runbook(
     service: str | None,
     triggers: list[str] | None = None,
     sections: list[tuple[str, str]] | None = None,
+    raw_content: str | None = None,
 ) -> Runbook:
     runbook = Runbook(
         title=title,
         service=service,
         triggers=triggers,
-        raw_content=f"# {title}",
+        raw_content=raw_content or f"# {title}",
     )
     session.add(runbook)
     for order_index, (heading, content) in enumerate(sections or []):
@@ -34,7 +39,7 @@ def _add_runbook(
 
 
 @pytest.mark.anyio
-async def test_matches_service_and_returns_only_relevant_sections(monkeypatch):
+async def test_catalog_lists_titles_and_headings_without_content(monkeypatch):
     session = InMemoryAsyncSession()
     monkeypatch.setattr(rb_tools_mod, "async_session_factory", session.factory)
 
@@ -44,26 +49,39 @@ async def test_matches_service_and_returns_only_relevant_sections(monkeypatch):
         service="auth-service",
         triggers=["OOMKilled"],
         sections=[
-            ("Rollback", "kubectl rollout undo deployment/auth-service -n production"),
-            ("Database pool", "Unrelated database connection pool tuning"),
+            ("Rollback", "Run kubectl rollout undo deployment/auth-service"),
             ("Verify recovery", "Watch restarts for ten minutes"),
         ],
     )
+    _add_runbook(
+        session,
+        title="Billing notes",
+        service="billing-service",
+        sections=[("Overview", "Invoice generation steps")],
+    )
 
-    matches = await find_runbooks_for_incident("auth-service", "crash_loop")
+    catalog = await load_runbook_catalog("auth-service", "crash_loop")
 
-    assert len(matches) == 1
-    match = matches[0]
-    assert match["title"] == "Auth OOMKill Runbook"
-    assert match["score"] >= 100
-    assert {section["heading"] for section in match["sections"]} == {
-        "Rollback",
-        "Verify recovery",
-    }
+    assert [entry["title"] for entry in catalog] == [
+        "Auth OOMKill Runbook",
+        "Billing notes",
+    ]
+    auth = catalog[0]
+    assert auth["runbook_id"]
+    assert [(section["index"], section["heading"]) for section in auth["sections"]] == [
+        (0, "Rollback"),
+        (1, "Verify recovery"),
+    ]
+
+    rendered = format_runbook_catalog(catalog)
+    assert "Auth OOMKill Runbook" in rendered
+    assert "0. Rollback" in rendered
+    assert "kubectl rollout undo" not in rendered
+    assert "Invoice generation" not in rendered
 
 
 @pytest.mark.anyio
-async def test_exact_service_match_outranks_keyword_match(monkeypatch):
+async def test_catalog_ranks_service_match_before_generic_match(monkeypatch):
     session = InMemoryAsyncSession()
     monkeypatch.setattr(rb_tools_mod, "async_session_factory", session.factory)
 
@@ -81,77 +99,158 @@ async def test_exact_service_match_outranks_keyword_match(monkeypatch):
         sections=[("Overview", "General operating notes")],
     )
 
-    matches = await find_runbooks_for_incident("checkout-service", "crash_loop")
+    catalog = await load_runbook_catalog("checkout-service", "crash_loop")
 
-    assert [match["title"] for match in matches] == [
+    assert [entry["title"] for entry in catalog] == [
         "Checkout runbook",
         "Generic OOMKilled recovery",
     ]
 
 
 @pytest.mark.anyio
-async def test_returns_at_most_three_runbooks(monkeypatch):
+async def test_catalog_caps_entries_but_keeps_unmatched_runbooks(monkeypatch):
     session = InMemoryAsyncSession()
     monkeypatch.setattr(rb_tools_mod, "async_session_factory", session.factory)
 
     for index in range(5):
         _add_runbook(
             session,
-            title=f"Rollout runbook {index}",
+            title=f"General runbook {index}",
             service=f"service-{index}",
-            triggers=["rollback"],
-            sections=[("Rollback", "Undo the rollout")],
+            sections=[("Overview", "General notes")],
         )
 
-    matches = await find_runbooks_for_incident(None, "bad_deployment")
+    catalog = await load_runbook_catalog(
+        None,
+        "other",
+        max_runbooks=3,
+    )
 
-    assert len(matches) == 3
+    assert len(catalog) == 3
+    assert all(entry["sections"] for entry in catalog)
 
 
 @pytest.mark.anyio
-async def test_falls_back_to_first_section_and_returns_empty_without_matches(monkeypatch):
+async def test_catalog_exposes_raw_content_as_overview(monkeypatch):
     session = InMemoryAsyncSession()
     monkeypatch.setattr(rb_tools_mod, "async_session_factory", session.factory)
 
     _add_runbook(
         session,
-        title="Auth deployment guide",
+        title="Unparsed runbook",
+        service="auth-service",
+        sections=[],
+        raw_content="# Rollback\nUndo the deployment.",
+    )
+
+    catalog = await load_runbook_catalog("auth-service", "crash_loop")
+
+    assert catalog[0]["sections"] == [{"index": 0, "heading": "Overview"}]
+
+    result = await fetch_runbook_sections(catalog[0]["runbook_id"], [0])
+
+    assert result["ok"] is True
+    assert result["sections"] == [
+        {
+            "index": 0,
+            "heading": "Overview",
+            "content": "# Rollback\nUndo the deployment.",
+            "truncated": False,
+        }
+    ]
+    # Content lives in `sections`; `output` is only a short status line.
+    assert "Undo the deployment." not in result["output"]
+
+
+@pytest.mark.anyio
+async def test_fetch_returns_only_requested_sections(monkeypatch):
+    session = InMemoryAsyncSession()
+    monkeypatch.setattr(rb_tools_mod, "async_session_factory", session.factory)
+
+    runbook = _add_runbook(
+        session,
+        title="Auth runbook",
         service="auth-service",
         sections=[
-            ("Overview", "General operating notes"),
-            ("Contacts", "Who owns it"),
+            ("Rollback", "Undo the deployment."),
+            ("Database pool", "Tune the connection pool."),
+            ("Verify recovery", "Watch restarts."),
         ],
     )
-    _add_runbook(
-        session,
-        title="Billing database notes",
-        service="billing-service",
-        sections=[("Overview", "Database maintenance")],
-    )
 
-    matches = await find_runbooks_for_incident("auth-service", "bad_deployment")
+    result = await fetch_runbook_sections(str(runbook.id), [2, 0])
 
-    assert len(matches) == 1
-    assert matches[0]["title"] == "Auth deployment guide"
-    assert [section["heading"] for section in matches[0]["sections"]] == ["Overview"]
-
-    assert await find_runbooks_for_incident(None, "other") == []
+    assert result["ok"] is True
+    assert [section["heading"] for section in result["sections"]] == [
+        "Rollback",
+        "Verify recovery",
+    ]
+    assert [section["content"] for section in result["sections"]] == [
+        "Undo the deployment.",
+        "Watch restarts.",
+    ]
+    assert "Tune the connection pool." not in result["output"]
 
 
 @pytest.mark.anyio
-async def test_caps_section_content(monkeypatch):
+async def test_fetch_rejects_unknown_runbook_and_bad_index(monkeypatch):
     session = InMemoryAsyncSession()
     monkeypatch.setattr(rb_tools_mod, "async_session_factory", session.factory)
 
-    _add_runbook(
+    runbook = _add_runbook(
+        session,
+        title="Auth runbook",
+        service="auth-service",
+        sections=[("Rollback", "Undo the deployment.")],
+    )
+
+    missing = await fetch_runbook_sections("not-a-uuid", [0])
+    assert missing["ok"] is False
+    assert "Unknown runbook_id" in missing["error"]
+
+    bad_index = await fetch_runbook_sections(str(runbook.id), [4])
+    assert bad_index["ok"] is False
+    assert "Valid indexes" in bad_index["error"]
+
+
+@pytest.mark.anyio
+async def test_fetch_rejects_too_many_sections(monkeypatch):
+    session = InMemoryAsyncSession()
+    monkeypatch.setattr(rb_tools_mod, "async_session_factory", session.factory)
+
+    runbook = _add_runbook(
+        session,
+        title="Auth runbook",
+        service="auth-service",
+        sections=[
+            ("One", "First"),
+            ("Two", "Second"),
+            ("Three", "Third"),
+            ("Four", "Fourth"),
+        ],
+    )
+
+    result = await fetch_runbook_sections(str(runbook.id), [0, 1, 2, 3])
+
+    assert result["ok"] is False
+    assert "at most 3 sections" in result["error"]
+
+
+@pytest.mark.anyio
+async def test_fetch_caps_section_content(monkeypatch):
+    session = InMemoryAsyncSession()
+    monkeypatch.setattr(rb_tools_mod, "async_session_factory", session.factory)
+
+    runbook = _add_runbook(
         session,
         title="Crash loop runbook",
         service="auth-service",
         sections=[("Logs", "x" * 10_000)],
     )
 
-    matches = await find_runbooks_for_incident("auth-service", "crash_loop")
+    result = await fetch_runbook_sections(str(runbook.id), [0])
 
-    section = matches[0]["sections"][0]
+    section = result["sections"][0]
     assert section["truncated"] is True
     assert len(section["content"]) <= rb_tools_mod.MAX_SECTION_CHARS + 40
+    assert result["truncated"] is True

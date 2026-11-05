@@ -1,7 +1,7 @@
 from enum import Enum
 from typing import Any, Dict, List, Optional, TypedDict
 
-from services.agent.playbooks import IncidentType
+from services.agent.incidents import IncidentType
 
 
 class Severity(str, Enum):
@@ -17,7 +17,7 @@ class Confidence(str, Enum):
 
 
 class EvidenceRecord(TypedDict):
-    """One read-only observation collected by a playbook."""
+    """One read-only observation collected by an evidence tool."""
 
     tool: str
     scope: str
@@ -57,11 +57,12 @@ class AgentState(TypedDict):
     deployment_name: Optional[str]
     container_name: Optional[str]
 
-    # Fixed-playbook evidence
+    # Evidence collected by the model-selected read-only Kubernetes tools
     evidence: List[EvidenceRecord]
     missing_evidence: List[str]
 
-    # Runbook lookup
+    # Bounded runbook guidance selected by the runbook LLM, refreshed when
+    # investigation fetches follow-up sections.
     runbooks_summary: str
 
     # Final structured result

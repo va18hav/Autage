@@ -5,7 +5,7 @@ import pytest
 import services.agent.nodes.trace_step as trace_step_mod
 import services.agent.nodes.triage as triage_mod
 from services.agent.nodes.triage import AlertTriage, Severity, process_alert
-from services.agent.playbooks import IncidentType
+from services.agent.incidents import IncidentType
 from tests.conftest import InMemoryAsyncSession
 
 

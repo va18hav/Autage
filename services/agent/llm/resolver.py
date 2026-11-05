@@ -25,11 +25,15 @@ class LlmConfigError(RuntimeError):
 
 class StepKey(str, Enum):
     TRIAGE = "triage"
+    RUNBOOKS = "runbooks"
+    INVESTIGATE = "investigate"
     DIAGNOSE = "diagnose"
 
 
 STEP_LABELS: dict[str, str] = {
     StepKey.TRIAGE: "Triage",
+    StepKey.RUNBOOKS: "Runbook Search",
+    StepKey.INVESTIGATE: "Investigation",
     StepKey.DIAGNOSE: "Diagnosis",
 }
 

@@ -4,7 +4,7 @@ from pydantic import BaseModel, Field
 
 from services.agent.llm import StepKey, get_llm
 from services.agent.nodes.trace_step import traced_step
-from services.agent.playbooks import IncidentType, get_playbook
+from services.agent.incidents import IncidentType
 from services.agent.prompts.diagnosis import build_diagnosis_prompt
 from services.agent.state import AgentState, Confidence, Diagnosis
 
@@ -31,26 +31,6 @@ class DiagnosisOutput(BaseModel):
 def _clean_steps(steps: List[str]) -> List[str]:
     cleaned = [step.strip() for step in steps if isinstance(step, str) and step.strip()]
     return cleaned[:6]
-
-
-def _unsupported_diagnosis(state: AgentState) -> Diagnosis:
-    missing = list(state.get("missing_evidence") or [])
-    return {
-        "what_happened": state.get("summary") or "An alert was received.",
-        "likely_cause": (
-            "Unclear. Autage does not yet have a specialised playbook for this "
-            "incident type."
-        ),
-        "confidence": Confidence.LOW,
-        "what_i_found": "Only the alert data was available for this incident.",
-        "missing_information": missing,
-        "recommended_steps": [
-            "Review the alert and confirm the affected service and namespace.",
-            "Check recent deployments and Kubernetes events for the affected workload.",
-            "Inspect pod status and logs for the affected service.",
-            "Use the team runbook or escalate to the service owner if the cause remains unclear.",
-        ],
-    }
 
 
 def _normalise_response(
@@ -94,9 +74,6 @@ def _normalise_response(
 async def diagnose(state: AgentState) -> Dict[str, Any]:
     """Turn the collected evidence into one structured, conservative diagnosis."""
     incident_type = state.get("incident_type") or IncidentType.OTHER
-    if get_playbook(incident_type) is None:
-        return {"diagnosis": _unsupported_diagnosis(state)}
-
     prompt = build_diagnosis_prompt(
         incident_title=state["incident_title"],
         incident_type=getattr(incident_type, "value", str(incident_type)),

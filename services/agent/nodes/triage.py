@@ -4,7 +4,7 @@ from pydantic import BaseModel, Field
 
 from services.agent.llm import StepKey, get_llm
 from services.agent.nodes.trace_step import traced_step
-from services.agent.playbooks import IncidentType
+from services.agent.incidents import IncidentType
 from services.agent.prompts.triage import build_system_prompt
 from services.agent.state import AgentState, Severity
 
