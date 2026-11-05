@@ -15,7 +15,7 @@ A plain-English guide. No Kubernetes knowledge assumed.
 
 ## Why this exists
 
-Autage diagnoses clusters by running real kubectl commands against them, so it needs
+Autage diagnoses clusters by calling the Kubernetes API directly, so it needs
 a cluster it can connect to. `kind` gives you a genuine one in ~1 minute, free and
 disposable: a real `auth-service` pod that OOMKills and crash-loops forever (our
 "sick patient"), plus a read-only bot account for the agent.
@@ -92,9 +92,9 @@ uv run python scripts/send_mock_alert.py --live
   plausible-but-nonexistent name (still fine — the agent self-corrects, it's
   just a harder test).
 
-Open the incident in the dashboard and watch: the agent plans real kubectl
-commands, reads the real crash logs of `auth-service-…` in `production`, and
-diagnoses from genuine OOMKill evidence.
+Open the incident in the dashboard and watch: the agent calls the
+Kubernetes API, reads the real crash logs of `auth-service-…` in `production`,
+and diagnoses from genuine OOMKill evidence.
 
 Cross-check manually:
 ```bash
